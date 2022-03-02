@@ -7,6 +7,7 @@ Date:     28 September 2021
 """
 
 from cProfile import label
+from cmath import phase
 from logging import root
 import os
 from sqlite3 import Timestamp
@@ -52,14 +53,18 @@ def main():
       os.mkdir(os.path.join(root_directory, 'quicklook'))
 
     # Extract configuration parameters from setup.ini and summary.ini files
-    time_stamp, switch_mode, n_seconds, presummed_prf, sampling_rate, range_bins, max_range \
-       = load_configuration_parameters(root_directory)
+    time_stamp, switch_mode, n_seconds, presummed_prf, n_pri, max_range \
+       = load_configuration_parameters(root_directory=root_directory)
+
+    x_axis = np.linspace(0, n_seconds, n_pri, endpoint=False)  # time axis
+    y_axis = np.linspace(0, max_range, (int)(n_seconds*presummed_prf), endpoint=False)  # range axis
 
     # load data from file and pack into a data matrix
-    data = load_data(root_directory, time_stamp, switch_mode, n_seconds, range_bins, presummed_prf)
+    data = load_data(root_directory=root_directory, time_stamp=time_stamp, switch_mode=switch_mode, \
+                         n_seconds=n_seconds, presummed_prf=presummed_prf, n_pri=n_pri)
 
     # perform motion compensation
-    data = motion_compensation(data=data, root_directory=root_directory)
+    #data = motion_compensation(data=raw_data, x_axis=x_axis, switch_mode=switch_mode, root_directory=root_directory)
 
     # OPTIONS
     if len(sys.argv) > 2:
@@ -71,12 +76,12 @@ def main():
         elif sys.argv[opt] == 'rd':
           # produce a range-Doppler plot and save to directory
           range_doppler(data, root_directory, time_stamp, switch_mode, \
-                        n_seconds, range_bins, presummed_prf, max_range)
+                        n_seconds, n_pri, presummed_prf, max_range)
 
         elif sys.argv[opt] == 'rti':
           # produce range-time plot and save to diectory
           rti(data, root_directory, time_stamp, switch_mode, \
-              n_seconds, range_bins, presummed_prf, max_range)
+              n_seconds, n_pri, presummed_prf, max_range)
     
         elif sys.argv[opt] == 'hist':
           # produce a histogram of the raw data
@@ -137,14 +142,14 @@ def load_configuration_parameters(root_directory):
   presummed_prf = prf//presumming_factor # TODO rename to more understandable term
 
   # number of range bins recorded for each pri
-  range_bins = end_index - start_index + 1
+  n_pri = end_index - start_index + 1
   
   print("Configuration parameters loaded.")
 
-  return time_stamp, switch_mode, n_seconds, presummed_prf, sampling_rate, range_bins, max_range
+  return time_stamp, switch_mode, n_seconds, presummed_prf, n_pri, max_range
 
 
-def load_data(root_directory, time_stamp, switch_mode, n_seconds, presummed_prf, sample_range):
+def load_data(root_directory, time_stamp, switch_mode, n_seconds, presummed_prf, n_pri):
   '''
   This function reads in raw miloSAR data stored in a .bin file in the given directory
   '''
@@ -164,7 +169,9 @@ def load_data(root_directory, time_stamp, switch_mode, n_seconds, presummed_prf,
   channel_b_data = data_array[3::4] + 1j*data_array[2::4]
 
   # calculate the number of samples recorded per channel
-  n_samples_per_channel = n_seconds*presummed_prf*sample_range
+  if switch_mode==3:
+    presummed_prf = int(presummed_prf//2)
+  n_samples_per_channel = n_seconds*presummed_prf*n_pri
 
   '''
   The actual file stored in memory has more bytes than what is calculated
@@ -178,9 +185,9 @@ def load_data(root_directory, time_stamp, switch_mode, n_seconds, presummed_prf,
 
   # reshape array into a 2D matrix for each channel in order to perform fft
   channel_a_data = np.transpose(channel_a_data.reshape(
-    n_seconds*presummed_prf, sample_range))
+    n_seconds*presummed_prf, n_pri))
   channel_b_data = np.transpose(channel_b_data.reshape(
-    n_seconds*presummed_prf, sample_range))
+    n_seconds*presummed_prf, n_pri))
   
   # Pack data into a matrix
   data = np.array([])
@@ -370,7 +377,7 @@ def plot_rd_map(title, data, switch_mode, channel, root_directory, time_stamp):
   print(time_stamp + " " + title.upper() + " " + str(switch_mode) + channel + " saved.")
 
 
-def rti(data, root_directory, time_stamp, switch_mode, n_seconds, sample_range, presummed_prf, max_range):
+def rti(data, root_directory, time_stamp, switch_mode, n_seconds, n_pri, presummed_prf, max_range):
   '''
   Produces and saves a range time intensity plot of the data
   Compute a 2D Fast Fourier Transform to convert fast-time axis to range and slow-time axis to time
@@ -378,8 +385,8 @@ def rti(data, root_directory, time_stamp, switch_mode, n_seconds, sample_range, 
   #TODO: Reduce dynamic range of image in order to see more low intensity clutter returns
 
   # Compute the axes
-  x_axis = np.linspace(0, n_seconds, (int)(n_seconds*presummed_prf) , endpoint=False)  # time axis
-  y_axis = np.linspace(0, max_range, sample_range, endpoint=False)  # range axis
+  x_axis = np.linspace(0, n_seconds, n_pri, endpoint=False)  # time axis
+  y_axis = np.linspace(0, max_range, (int)(n_seconds*presummed_prf), endpoint=False)  # range axis
 
   # select which channel to plot depending on switch mode
   if switch_mode == 1:
@@ -442,7 +449,7 @@ def plot_rti(title, data, x_axis, y_axis, switch_mode, channel, root_directory, 
   
   data_log10 = 20*np.log10(np.abs(data)) - np.amax(20*np.log10(np.abs(data)))
   
-  plt.imshow(data_log10, aspect='auto', origin='lower', extent=[min(x_axis), max(x_axis), min(y_axis), max(y_axis)])
+  plt.imshow(data_log10/1.1, aspect='auto', origin='lower', extent=[min(x_axis), max(x_axis), min(y_axis), max(y_axis)])
     
   file_name = time_stamp + "_" + title + "_" + str(switch_mode) + channel + ".png"
   plt.savefig(os.path.join(root_directory, 'quicklook/'+file_name))
@@ -497,16 +504,17 @@ def haversine(lon_A, lat_A, lon_B, lat_B):
 
   R = 6371  # Earth's approximate radius in kilometres 
 
-  # return distance in meters
+  # return distance by which to compensate in meters
   distance = 0  # default case
   if dlat > 10e-9:    # provide an error margin
-    distance = R*c*1000
-  if dlat < -10e-9:
     distance = -1*R*c*1000
+  if dlat < -10e-9:
+    distance = R*c*1000
 
   return distance # in metres
 
-def motion_compensation(data, root_directory):
+
+def motion_compensation(data, x_axis, switch_mode, root_directory):
   '''
   Read motion data from JSON generated by system
   Extract the following information:
@@ -554,7 +562,7 @@ def motion_compensation(data, root_directory):
   plt.title('Nominal vs Actual Flight Path')
   plt.legend()
   plt.grid()
-  plt.savefig(os.path.join(root_directory, "quicklook/actual_vs_nomimal_path.png"))
+  plt.savefig(os.path.join(root_directory, 'quicklook/actual_vs_nomimal_path.png'))
 
   # now to find the deviations of the flight path from the straight-line simulated above
   lon_A = longitude
@@ -565,12 +573,65 @@ def motion_compensation(data, root_directory):
   for i in range(longitude.size):
     range_deviation  = np.append(range_deviation, haversine(lon_A[i], lat_A[i], lon_B[i], lat_B[i]))
 
-  ###### test statement ######
-  # print(range_deviation)
+  # resize range deviation map to number of range bins
+  n_pris = data.shape[0]
+  n_range_bins = data.shape[1]
+  n_polarizations = data.shape[2]
 
+  t_interpolate = np.array([])
+  for t in timestamp:
+    t_interpolate = np.append(t_interpolate, (t-timestamp[0])/1e3)  # given 10Hz refresh rate, t has 0.1s increments
+
+  range_dev = interpolate.interp1d(t_interpolate, range_deviation, kind='linear')
+  range_deviation_correction = range_dev(x_axis)
+  
   # apply range bin correction to the data
   # loop through each range bin in each pri and apply range correction
+  phase_shift = np.exp(np.multiply(-1j*(4*np.pi), range_deviation_correction))
+  phase_shift = np.array([phase_shift,])
+  data_out = np.array([])
 
+  if switch_mode  == 1:
+    channel_1a = data[:,:,0]
+    channel_1b = data[:,:,1]
+
+    temp_1a = np.multiply(np.transpose(channel_1a), phase_shift)
+    temp_1b = np.multiply(np.transpose(channel_1b), phase_shift)
+    
+    data_out = np.dstack((temp_1a, temp_1b))
+  
+  if switch_mode  == 2:
+    channel_2a = data[:,:,0]
+    channel_2b = data[:,:,1]
+
+    temp_2a = np.multiply(np.transpose(channel_2a), phase_shift)
+    temp_2b = np.multiply(np.transpose(channel_2b), phase_shift)
+
+    # TODO: Range bin shifting
+    # apply range bin shifting to the dataset
+    #for pri in range(n_pris):
+      #temp_2a[pri,:] = temp_2a[pri,:] + range_deviation_correction
+      #temp_2b[pri,:] = temp_2b[pri,:] + range_deviation_correction
+
+    data_out = np.dstack((temp_2a, temp_2b))
+        
+  elif switch_mode == 3:
+    channel_1a = data[:,:,0]
+    channel_1b = data[:,:,1]
+    channel_2a = data[:,:,2]
+    channel_2b = data[:,:,3]
+
+    temp_1a = np.multiply(np.transpose(channel_1a), phase_shift)
+    temp_1b = np.multiply(np.transpose(channel_1b), phase_shift)
+    temp_2a = np.multiply(np.transpose(channel_2a), phase_shift)
+    temp_2b = np.multiply(np.transpose(channel_2b), phase_shift)
+ 
+    data_out = np.dstack((temp_1a,    # 1a
+                          temp_1b,    # 1b
+                          temp_2a,    # 2a
+                          temp_2b))   # 2b
+
+  return data_out
 
 
 if __name__ == "__main__":
