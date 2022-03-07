@@ -60,11 +60,14 @@ def main():
     y_axis = np.linspace(0, max_range, (int)(n_seconds*presummed_prf), endpoint=False)  # range axis
 
     # load data from file and pack into a data matrix
-    data = load_data(root_directory=root_directory, time_stamp=time_stamp, switch_mode=switch_mode, \
+    raw_data = load_data(root_directory=root_directory, time_stamp=time_stamp, switch_mode=switch_mode, \
                          n_seconds=n_seconds, presummed_prf=presummed_prf, n_pri=n_pri)
 
+    # apply windowing function to data
+    data = window(data=raw_data, switch_mode=switch_mode, n_pri=n_pri)
+    
     # perform motion compensation
-    #data = motion_compensation(data=raw_data, x_axis=x_axis, switch_mode=switch_mode, root_directory=root_directory)
+    #data = motion_compensation(data=windowed_data, x_axis=x_axis, switch_mode=switch_mode, root_directory=root_directory)
 
     # OPTIONS
     if len(sys.argv) > 2:
@@ -202,8 +205,62 @@ def load_data(root_directory, time_stamp, switch_mode, n_seconds, presummed_prf,
                     channel_a_data[:, 1::2],    # 2a
                     channel_b_data[:, 1::2]))   # 2b
 
+  #TODO: Constants
+  rp_adc_vpp = 2 # 2V peak-to-peak on this model red pitaya
+  rp_adc_bits = 14 # for this model
+  adc_bits_volts = 2*rp_adc_vpp/math.pow(2, rp_adc_bits)
+
+  # scale data
+  data = data*adc_bits_volts
+
   print("Dataset", time_stamp, "loaded successfully.")
   return data
+
+
+def window(data, switch_mode, n_pri):
+    '''
+    Attempt at windowing the data to remove high sidelobes
+    Using Hamming window function
+    '''
+    window_function = np.hamming(n_pri)
+
+    window_function = np.array([window_function])
+
+    if switch_mode  == 1:
+      channel_1a = data[:,:,0]
+      channel_1b = data[:,:,1]
+
+      channel_1a = np.multiply(channel_1a, np.transpose(window_function))
+      channel_1b = np.multiply(channel_1b, np.transpose(window_function))
+
+      data_out = np.dstack((channel_1a, channel_1b))
+    
+    if switch_mode  == 2:
+      channel_2a = data[:,:,0]
+      channel_2b = data[:,:,1]
+
+      channel_2a = np.multiply(channel_2a, np.transpose(window_function))
+      channel_2b = np.multiply(channel_2b, np.transpose(window_function))
+
+      data_out = np.dstack((channel_2a, channel_2b))
+          
+    elif switch_mode == 3:
+      channel_1a = data[:,:,0]
+      channel_1b = data[:,:,1]
+      channel_2a = data[:,:,2]
+      channel_2b = data[:,:,3]
+
+      channel_1a = np.multiply(channel_1a, np.transpose(window_function))
+      channel_1b = np.multiply(channel_1b, np.transpose(window_function))
+      channel_2a = np.multiply(channel_2a, np.transpose(window_function))
+      channel_2b = np.multiply(channel_2b, np.transpose(window_function))
+
+      data_out = np.dstack((channel_1a,    # 1a
+                            channel_1b,    # 1b
+                            channel_2a,    # 2a
+                            channel_2b))   # 2b
+
+    return data_out
 
 
 def save_raw(data, root_directory, time_stamp, switch_mode):
@@ -283,12 +340,12 @@ def range_doppler(data, root_directory, time_stamp, switch_mode, n_seconds, samp
     # FFT in the fast-time axis
     channel_1a_fft = np.fft.fft(channel_1a, n=2048, axis=0)
     # FFt in the slow-time axis
-    channel_1a_rd = np.fft.fft(np.fft.fft(channel_1a_fft, n=1024, axis=1))
+    channel_1a_rd = np.fft.fft(np.fft.fft(channel_1a_fft, n=2048, axis=1))
 
     # FFT in the fast-time axis
     channel_1b_fft = np.fft.fft(channel_1b, n=2048, axis=0)
     # FFt in the slow-time axis
-    channel_1b_rd = np.fft.fft(np.fft.fft(channel_1b_fft, n=1024, axis=1))
+    channel_1b_rd = np.fft.fft(np.fft.fft(channel_1b_fft, n=2048, axis=1))
 
     # produce the range-Doppler plots
     plot_rd_map(title='rd', data=channel_1a_rd, switch_mode=switch_mode, \
@@ -305,12 +362,12 @@ def range_doppler(data, root_directory, time_stamp, switch_mode, n_seconds, samp
     # FFT in the fast-time axis
     channel_2a_fft = np.fft.fft(channel_2a, n=2048, axis=0)
     # FFt in the slow-time axis
-    channel_2a_rd = np.fft.fft(np.fft.fft(channel_2a_fft, n=1024, axis=1))
+    channel_2a_rd = np.fft.fft(np.fft.fft(channel_2a_fft, n=2048, axis=1))
 
     # FFT in the fast-time axis
     channel_2b_fft = np.fft.fft(channel_2b, n=2048, axis=0)
     # FFt in the slow-time axis
-    channel_2b_rd = np.fft.fft(np.fft.fft(channel_2b_fft, n=1024, axis=1))
+    channel_2b_rd = np.fft.fft(np.fft.fft(channel_2b_fft, n=2048, axis=1))
 
     # produce the range-Doppler plots
     plot_rd_map(title='rd', data=channel_2a_rd, switch_mode=switch_mode, \
@@ -328,22 +385,22 @@ def range_doppler(data, root_directory, time_stamp, switch_mode, n_seconds, samp
     # FFT in the fast-time axis
     channel_1a_fft = np.fft.fft(channel_1a, n=2048, axis=0)
     # FFt in the slow-time axis
-    channel_1a_rd = np.fft.fft(np.fft.fft(channel_1a_fft, n=1024, axis=1))
+    channel_1a_rd = np.fft.fft(channel_1a_fft, n=2048, axis=1)
 
     # FFT in the fast-time axis
     channel_1b_fft = np.fft.fft(channel_1b, n=2048, axis=0)
     # FFt in the slow-time axis
-    channel_1b_rd = np.fft.fft(np.fft.fft(channel_1b_fft, n=1024, axis=1))
+    channel_1b_rd = np.fft.fft(channel_1b_fft, n=2048, axis=1)
 
     # FFT in the fast-time axis
     channel_2a_fft = np.fft.fft(channel_2a, n=2048, axis=0)
     # FFt in the slow-time axis
-    channel_2a_rd = np.fft.fft(np.fft.fft(channel_2a_fft, n=1024, axis=1))
+    channel_2a_rd = np.fft.fft(channel_2a_fft, n=2048, axis=1)
 
     # FFT in the fast-time axis
     channel_2b_fft = np.fft.fft(channel_2b, n=2048, axis=0)
     # FFt in the slow-time axis
-    channel_2b_rd = np.fft.fft(np.fft.fft(channel_2b_fft, n=1024, axis=1))
+    channel_2b_rd = np.fft.fft(channel_2b_fft, n=2048, axis=1)
 
     # produce the range-Doppler plots for each polarization
     plot_rd_map(title='rd', data=channel_1a_rd, switch_mode=1, \
@@ -392,8 +449,8 @@ def rti(data, root_directory, time_stamp, switch_mode, n_seconds, n_pri, presumm
   if switch_mode == 1:
     channel_1a = data[:,:,0]
     channel_1b = data[:,:,1]
-    channel_1a_fft = np.fft.fftshift(np.fft.fft2(channel_1a))
-    channel_1b_fft = np.fft.fftshift(np.fft.fft2(channel_1b))
+    channel_1a_fft = np.fft.fftshift(np.fft.fft2(channel_1a, s=[2048, 2048]))
+    channel_1b_fft = np.fft.fftshift(np.fft.fft2(channel_1b, s=[2048, 2048]))
 
     plot_rti(title='rti', data=channel_1a_fft, x_axis=x_axis, y_axis=y_axis, switch_mode=switch_mode, \
               channel='a', root_directory=root_directory, time_stamp=time_stamp)
@@ -404,8 +461,8 @@ def rti(data, root_directory, time_stamp, switch_mode, n_seconds, n_pri, presumm
   elif switch_mode == 2:
     channel_2a = data[:,:,0]
     channel_2b = data[:,:,1]
-    channel_2a_fft = np.fft.fftshift(np.fft.fft2(channel_2a))
-    channel_2b_fft = np.fft.fftshift(np.fft.fft2(channel_2b))
+    channel_2a_fft = np.fft.fftshift(np.fft.fft2(channel_2a, s=[2048, 2048]))
+    channel_2b_fft = np.fft.fftshift(np.fft.fft2(channel_2b, s=[2048, 2048]))
 
     plot_rti(title='rti', data=channel_2a_fft, x_axis=x_axis, y_axis=y_axis, switch_mode=switch_mode, \
               channel='a', root_directory=root_directory, time_stamp=time_stamp)
@@ -419,10 +476,10 @@ def rti(data, root_directory, time_stamp, switch_mode, n_seconds, n_pri, presumm
     channel_2a = data[:,:,2]
     channel_2b = data[:,:,3]
     
-    channel_1a_fft = np.fft.fftshift(np.fft.fft2(channel_1a))
-    channel_1b_fft = np.fft.fftshift(np.fft.fft2(channel_1b))
-    channel_2a_fft = np.fft.fftshift(np.fft.fft2(channel_2a))
-    channel_2b_fft = np.fft.fftshift(np.fft.fft2(channel_2b))
+    channel_1a_fft = np.fft.fftshift(np.fft.fft2(channel_1a, s=[2048, 2048]))
+    channel_1b_fft = np.fft.fftshift(np.fft.fft2(channel_1b, s=[2048, 2048]))
+    channel_2a_fft = np.fft.fftshift(np.fft.fft2(channel_2a, s=[2048, 2048]))
+    channel_2b_fft = np.fft.fftshift(np.fft.fft2(channel_2b, s=[2048, 2048]))
 
     plot_rti(title='rti', data=channel_1a_fft, x_axis=x_axis, y_axis=y_axis, switch_mode=1, \
               channel='a', root_directory=root_directory, time_stamp=time_stamp)
@@ -447,9 +504,13 @@ def plot_rti(title, data, x_axis, y_axis, switch_mode, channel, root_directory, 
   plt.xlabel("Slow Time [s]")
   plt.ylabel("Range [m]")
   
-  data_log10 = 20*np.log10(np.abs(data)) - np.amax(20*np.log10(np.abs(data)))
+  data_dB = 20*np.log10(abs(data))
+  data_max = np.amax(data_dB)
+  data_min = np.nanmin(np.mean(data_dB, axis=1))
+
+  data_dB = np.clip(data_dB, data_min, data_max)
   
-  plt.imshow(data_log10/1.1, aspect='auto', origin='lower', extent=[min(x_axis), max(x_axis), min(y_axis), max(y_axis)])
+  plt.imshow(data_dB, interpolation='none', cmap='viridis', aspect='auto', origin='lower', extent=[min(x_axis), max(x_axis), min(y_axis), max(y_axis)])
     
   file_name = time_stamp + "_" + title + "_" + str(switch_mode) + channel + ".png"
   plt.savefig(os.path.join(root_directory, 'quicklook/'+file_name))
@@ -573,11 +634,6 @@ def motion_compensation(data, x_axis, switch_mode, root_directory):
   for i in range(longitude.size):
     range_deviation  = np.append(range_deviation, haversine(lon_A[i], lat_A[i], lon_B[i], lat_B[i]))
 
-  # resize range deviation map to number of range bins
-  n_pris = data.shape[0]
-  n_range_bins = data.shape[1]
-  n_polarizations = data.shape[2]
-
   t_interpolate = np.array([])
   for t in timestamp:
     t_interpolate = np.append(t_interpolate, (t-timestamp[0])/1e3)  # given 10Hz refresh rate, t has 0.1s increments
@@ -595,17 +651,17 @@ def motion_compensation(data, x_axis, switch_mode, root_directory):
     channel_1a = data[:,:,0]
     channel_1b = data[:,:,1]
 
-    temp_1a = np.multiply(np.transpose(channel_1a), phase_shift)
-    temp_1b = np.multiply(np.transpose(channel_1b), phase_shift)
+    temp_1a = np.multiply(channel_1a, phase_shift)
+    temp_1b = np.multiply(channel_1b, phase_shift)
     
     data_out = np.dstack((temp_1a, temp_1b))
   
   if switch_mode  == 2:
     channel_2a = data[:,:,0]
     channel_2b = data[:,:,1]
-
-    temp_2a = np.multiply(np.transpose(channel_2a), phase_shift)
-    temp_2b = np.multiply(np.transpose(channel_2b), phase_shift)
+    
+    temp_2a = np.multiply(channel_2a, np.transpose(phase_shift))
+    temp_2b = np.multiply(channel_2b, np.transpose(phase_shift))
 
     # TODO: Range bin shifting
     # apply range bin shifting to the dataset
@@ -621,10 +677,10 @@ def motion_compensation(data, x_axis, switch_mode, root_directory):
     channel_2a = data[:,:,2]
     channel_2b = data[:,:,3]
 
-    temp_1a = np.multiply(np.transpose(channel_1a), phase_shift)
-    temp_1b = np.multiply(np.transpose(channel_1b), phase_shift)
-    temp_2a = np.multiply(np.transpose(channel_2a), phase_shift)
-    temp_2b = np.multiply(np.transpose(channel_2b), phase_shift)
+    temp_1a = np.multiply(channel_1a, phase_shift)
+    temp_1b = np.multiply(channel_1b, phase_shift)
+    temp_2a = np.multiply(channel_2a, np.transpose(phase_shift)) # out of phase with with channel 1
+    temp_2b = np.multiply(channel_2b, np.transpose(phase_shift)) # out of phase with with channel 1
  
     data_out = np.dstack((temp_1a,    # 1a
                           temp_1b,    # 1b
