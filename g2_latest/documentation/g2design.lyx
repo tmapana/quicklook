@@ -1,0 +1,4757 @@
+#LyX 1.1 created this file. For more info see http://www.lyx.org/
+\lyxformat 2.16
+\textclass report
+\begin_preamble
+
+\usepackage{fancyhdr,graphicx}
+
+\def\docnumber{rrsg:00}
+\def\docrevnum{A}
+\def\userdate{\today}
+\def\classification{Draft}
+
+\textwidth=167mm
+\parskip=3mm
+
+
+% Define PostScript graphics command
+\special{header=/usr/local/share/lyx/templates/rrsglogo.h}
+
+% Save graphics in LaTeX box
+\newsavebox{\rrsglogo}
+\sbox{\rrsglogo}{\includegraphics[totalheight=10mm]{/usr/local/share/lyx/templates/rrsglogo.ps}}
+
+% Header and Footer Line Widths
+\renewcommand{\headrulewidth}{0.4pt}
+\renewcommand{\footrulewidth}{0.4pt}
+\flushbottom
+
+\fancyhead{}                 % Clear all header fields
+
+\fancyhead[L]
+{
+{ \em UCT Radar Remote \\ Sensing Group}
+}
+
+\fancyhead[C]{\usebox{\rrsglogo}}
+
+\fancyhead[R]
+{
+{ \em Department of ~ \\ 
+  Electrical Engineering}
+}
+
+\fancyfoot{}                   % Clear all footer fields
+
+\fancyfoot[L]
+{
+{ Document No.~\docnumber \\ 
+  Document Rev.~\docrevnum}
+}
+
+\fancyfoot[C]
+{
+{~\\ \classification}
+}
+
+\fancyfoot[R]
+{
+{ \userdate ~~ \\ 
+  Page:  \thepage~of~\pageref{lastpg}}
+}
+
+
+% Define the same headers and footers for plain pages
+
+\fancypagestyle{plain}{
+\fancyhead{}                 % Clear all header fields
+
+\fancyhead[L]
+{
+{ \em UCT Radar Remote \\ Sensing Group}
+}
+
+\fancyhead[C]{\usebox{\rrsglogo}}
+
+\fancyhead[R]
+{
+{ \em Department of ~ \\ 
+  Electrical Engineering}
+}
+
+\fancyfoot{}                   % Clear all footer fields
+
+\fancyfoot[L]
+{
+{ Document No.~\docnumber \\ 
+  Document Rev.~\docrevnum}
+}
+
+\fancyfoot[C]
+{
+{~\\ \classification}
+}
+
+\fancyfoot[R]
+{
+{ \userdate ~~ \\ 
+  Page:  \thepage~of~\pageref{lastpg}}
+}
+}
+\end_preamble
+\language default
+\inputencoding latin1
+\fontscheme default
+\graphics default
+\paperfontsize default
+\spacing onehalf 
+\papersize a4paper
+\paperpackage a4
+\use_geometry 1
+\use_amsmath 0
+\paperorientation portrait
+\topmargin 10mm
+\bottommargin 15mm
+\headheight 10mm
+\headsep 12mm
+\footskip 12mm
+\secnumdepth 3
+\tocdepth 3
+\paragraph_separation skip
+\defskip medskip
+\quotes_language english
+\quotes_times 2
+\papercolumns 1
+\papersides 1
+\paperpagestyle fancy
+
+\layout Title
+
+Design Document for G2 Airborne SAR Processor
+\layout Author
+
+J.M.
+ Horrell
+\layout Date
+
+
+\latex latex 
+
+\backslash 
+userdate
+\latex default 
+
+\begin_inset Info Change the date inside the LaTeX Preamble.
+\end_inset 
+
+
+\newline 
+
+\latex latex 
+
+\backslash 
+vspace{1in}
+\latex default 
+File: filename
+\newline 
+Document No: 
+\latex latex 
+
+\backslash 
+docnumber
+\begin_inset Info Change the Document Number inside the LaTeX Preamble.
+\end_inset 
+
+
+\layout Standard
+
+
+\begin_inset LatexCommand \tableofcontents{}
+
+\end_inset 
+
+
+\layout Standard
+
+
+\begin_inset LatexCommand \listoffigures{}
+
+\end_inset 
+
+
+\layout Standard
+
+
+\begin_inset LatexCommand \listoftables{}
+
+\end_inset 
+
+
+\layout Chapter
+
+Scope
+\layout Section
+
+Identification
+\layout Standard
+
+This is the design document for the G2 airborne SAR processor.
+\layout Section
+
+Purpose
+\layout Standard
+
+The document describes in detail the design of the G2 processor.
+ The intention is to provide a clear map with interface definitions to assist
+ in further development of the processor.
+ This document contains the technical detail required by developers and
+ is not intended as a users manual which exists as a separate document.
+\layout Section
+
+Introduction
+\layout Standard
+
+The G2 processor has is based on the range-Doppler algorithm and has been
+ designed for the processing of airborne synthetic aperture radar data.
+ The processor has been written to support the flexible nature of experimental
+ work and thus is highly configurable with a modular design.
+ The core modules
+\begin_float footnote 
+\layout Standard
+
+The major core modules for range compression, 
+\begin_inset Quotes eld
+\end_inset 
+
+rngcom
+\begin_inset Quotes erd
+\end_inset 
+
+, and azimuth compression, 
+\begin_inset Quotes eld
+\end_inset 
+
+azcom
+\begin_inset Quotes erd
+\end_inset 
+
+, have been the result of an evolutionary development rather than a top
+ down design and, while fully functional and commented, could be rewritten
+ with more internal modular structure to allow for easier future development.
+\end_float 
+ are written in C for speed with integration of the various modules provided
+ through Python code.
+\layout Standard
+
+The implementation described here using Python modules as the overall 
+\begin_inset Quotes eld
+\end_inset 
+
+glue
+\begin_inset Quotes erd
+\end_inset 
+
+ has been directed at the processing of SASAR VHF data (the South African
+ Synthetic Aperture Radar VHF Sensor) and is currently the official (and
+ only) processor for this radar.
+ However, many of the modules may be reused for processing data from other
+ sensors.
+ For example, in addition to SASAR VHF data, the core modules of the processor
+ have on a number of occasions been used to process E-SAR data from the
+ DLR, Germany and also to process simulated SAR data using Rolf's Radar
+ Simulator of the UCT RRSG.
+\layout Standard
+
+In this document, the functional requirements for the code are stated and
+ the architectual- and detailed designs are presented.
+\layout Chapter
+
+Requirements
+\layout Standard
+
+The G2 processor has been developed as an in-house capability of the Radar
+ Remote Sensing Group and thus has not been the result of a set of customer
+ requirements.
+\layout Standard
+
+The in-house requirements have been to develop a flexible SAR processor
+ for experimental work which incorporates the full functionality required
+ for airborne SAR processing of real systems (i.e includes motion compensation,
+ checks for I/Q imbalance, multilook processing).
+\layout Standard
+
+Early in the development, computer RAM was limited and the processor was
+ required to operate with a configurable amount of memory.
+ In addition, the processor was required to be fast in execution.
+ The memory and execution speed requirements have been largely maintained
+ up to the latest version, but over time, there has been some tradeoff introduce
+d between these requirements and maintainability.
+\layout Standard
+
+The processor was required to be able to handle a large range of sensor
+ configurations from medium resolution VHF (100 MHz+) data to high resolution
+ at higher frequencies.
+ The processor limitations at low frequencies are detailed in 
+\begin_inset LatexCommand \cite{horrell:99}
+
+\end_inset 
+
+.
+\layout Standard
+
+The requirement was for the code to run on Unix-like systems, but portability
+ issues have been considered at all stages of development.
+ The current development and run-time OS is predominantly Linux.
+ Early versions of the processor ran under DOS and Solaris and the latest
+ integrated version should be able to be fairly easily ported to the win32
+ platforms.
+\layout Chapter
+
+Architectural Design
+\layout Section
+
+Overview
+\layout Standard
+
+The G2 sythetic aperture radar (SAR) processor is based on the range-Doppler
+ algorithm and has been designed for the processing of airborne SAR data.
+ The processor is modular and flexible and can handle a wide range of SAR
+ processing tasks.
+ This version of the processor includes a Python program, "g2.py", which
+ integrates the various modules and has been designed for the processing
+ of SASAR VHF data (South African SAR VHF sensor).
+ The integrated processor runs from the command line and reads its configuration
+ parameters from the ASCII processor configuration file.
+ 
+\layout Standard
+
+In many cases, it is possible to use the integrated version for processing
+ of data from systems other than the SASAR VHF system by simply changing
+ input parameters.
+ Where the integrated processor is found not to be suitable for a particular
+ processing job, it might still be possible to configure the various modules
+ manually to get the job done (see below).
+ In addition, if semi-automated processing is required for a new SAR sensor,
+ a new version of the overall glue program in Python could be created which
+ used the same core modules (such as range compression, azimuth compression,
+ etc.).
+\layout Section
+
+Design Philosophy
+\layout Standard
+
+The processor has been written to be as flexible as possible (required for
+ experimental systems) whilst retaining a simple user interface.
+ The processor is run from the command line with setup parameters specified
+ in an ASCII configuration file.
+\layout Standard
+
+The integrated processor is comprised of a number of modules, each of which
+ usually reads from some input file and writes to an output file.
+ Log files are also generated by certain of the modules.
+ These are read by later modules to set parameters in the integrated processor.
+ For usability, all module configuration files are ASCII and, in order to
+ save disk space, most large data files are binary.
+\layout Standard
+
+The operator can, through the processor configuration file, decide whether
+ to keep all the intermediate temporary files and temporary log files or
+ delete them at the end.
+ For debugging a processing run, it is often very useful having all the
+ temporary log- and config (and even data) files available, but these can
+ take up a lot of disk space.
+\layout Standard
+
+Most of the modules are written in C (for speed) with certain modules in
+ the Python language.
+ The overall glue for the processor is written in Python.
+ The C modules have been compiled to be standalone executables and the Python
+ modules to Python byte code which are called by the main Python code.
+ The Python code automatically configures the processing for the particular
+ modules comprising the integrated processor.
+ Thus, the user is only required to set up one ASCII file which specfies
+ the overall configuration for the processing run.
+ Before each module is executed, the specific configuration file for that
+ module is automatically configured.
+ 
+\layout Standard
+
+For example, the azimuth processing module requires a configuration ASCII
+ text file which the Python code automatically generates before calling
+ the operating system to excute azimuth processing.
+ 
+\layout Standard
+
+While using the integrated processor is the best way for processing SASAR
+ VHF (and similar) data, an alternative approach is available in that the
+ separate modules comprising the integrated processor may be run independently
+ from the command line.
+ This is a deliberate part of the design to allow for greater flexibility
+ in usage.
+\layout Section
+
+Code Structure
+\layout Subsection
+
+Main Program
+\layout Standard
+
+The top-level (main) program for the G2 processor is named 
+\begin_inset Quotes eld
+\end_inset 
+
+g2.py
+\begin_inset Quotes erd
+\end_inset 
+
+ and is controlled through the command line.
+ This Python program provides the glue which ties together all the various
+ modules.
+ 
+\layout Standard
+
+Apart from calling the relevant processing modules, g2.py along with its
+ helper modules g2tmpl.py and g2tools.py, are also responsible for all the
+ logic required to string the various processing modules together, the auto-gene
+ration of template files (including the G2 User Manual in html), on-the-fly
+ generation of the various processing module configuration files, error
+ message handling, and handling of certain other functionality (like the
+ clean up).
+ 
+\layout Standard
+
+g2.py relies heavily on two configuration files being properly set up before
+ a processing run.
+ These are the processor config file and the radar config file.
+ These are both ASCII text files for which commented templates may be optionally
+ generated by g2.py.
+\layout Standard
+
+1) processor configuration file - this is configured at process time by
+ the processor operator and contains all those parameters which the processor
+ operator usually would select (like the required azimuth resolution).
+ For normal operation, the processor config file would be the ONLY file
+ with which the processor operator needs to be concerned.
+\layout Standard
+
+2) radar configuration file - this ideally written by the radar control
+ software and would not normally be altered by the processor operator.
+ However, even for the current SASAR system, this file is required to be
+ set up manually.
+ Parameters in the radar configuration file include radar centre frequency
+ and pulse length, for example.
+ The radar config file also contains names (without paths) of the raw data
+ file, LBR file, DGPS file, etc.
+ The paths to those files are set up in the processor config file.
+\layout Subsection
+
+Processing Modules
+\layout Standard
+
+In the main integrated processor configuration file, processing modules
+ may be switched in and out.
+ Permissible states for modules are are y / n / only /off which allows for
+ very flexible operation.
+ The meaning of these states are:
+\layout Itemize
+
+
+\series bold 
+y
+\series default 
+ (yes) - Run this module, performing relevant parameter calculations or
+ reads from log files, and write log file, if any.
+\layout Itemize
+
+
+\series bold 
+n
+\series default 
+ (no) - Do not run this module, but infer parameters and read from log files
+ as if it had been run.
+\layout Itemize
+
+
+\series bold 
+only
+\series default 
+ - Run only this module and none other.
+ Dynamic parameters are calculated or read from intermediate log files of
+ the other modules unless these are set to "off"
+\layout Itemize
+
+
+\series bold 
+off
+\series default 
+ - Do not run this module and do not infer any parameters or read from its
+ log file (i.e.
+ as if module absent altogrether).
+ Note that the 'off' state is only permitted for certain modules.
+ 
+\layout Standard
+
+Checks are performed for modules not in 'off' state which depend on a module
+ which is in the 'off state.
+ These options allow flexible processor configuration.
+ For example, a run may be restarted from half-way, by setting the previously
+ completed portions to "n".
+ The correct parameters for the later modules will still be calculated or
+ read from the intermediate log files.
+\layout Standard
+
+The main processing modules (available as standalone modules, unless contra-indi
+cated) which may be configured in the processor configuration file are (in
+ normal order of SASAR processing execution):
+\layout Itemize
+
+
+\series bold 
+UnpackIMU
+\series default 
+ - Unpack the IMU records from the SASAR LBR file and write to an ASCII
+ file (C executable - 
+\begin_inset Quotes eld
+\end_inset 
+
+imu_unpack
+\begin_inset Quotes erd
+\end_inset 
+
+).
+\layout Itemize
+
+
+\series bold 
+UnpackDGPS
+\series default 
+ -Unpack the DGPS records to a more readable ASCII format and sync with
+ the IMU data (Python code - 
+\begin_inset Quotes eld
+\end_inset 
+
+g2unpk_dgps.py
+\begin_inset Quotes erd
+\end_inset 
+
+).
+\layout Itemize
+
+
+\series bold 
+MergeMocData
+\series default 
+ - Merge the IMU and DGPS records to form a single ASCII file with the LBR
+ PRI, Latitude, Longitude, etc.
+ This does all the smoothing, interpolation, etc.
+ (Python code 
+\begin_inset Quotes eld
+\end_inset 
+
+g2mocfilt.py
+\begin_inset Quotes erd
+\end_inset 
+
+).
+ This also requires the Scientific Python modules be installed as freely
+ available on the web.
+\layout Itemize
+
+
+\series bold 
+MocompCalc
+\series default 
+ - Calculate the range shifts required for each range line from the merged
+ motion data.
+ Also creates the geocoding information.
+ (C executable - 
+\begin_inset Quotes eld
+\end_inset 
+
+mocomp
+\begin_inset Quotes erd
+\end_inset 
+
+).
+\layout Itemize
+
+
+\series bold 
+PlotMotionError
+\series default 
+ - Plot the motion compensation range shift as calculated by the MocompCalc
+ module.
+ (Python code - not standalone).
+ This requires that the freely available Gnuplot.py module be installed.
+\layout Itemize
+
+
+\series bold 
+SniffDC
+\series default 
+ - Calculate the DC offsets and average I to Q value ratio from an analysis
+ of part of the raw data (C executable - 
+\begin_inset Quotes eld
+\end_inset 
+
+sniffdc
+\begin_inset Quotes erd
+\end_inset 
+
+)
+\layout Itemize
+
+
+\series bold 
+RngProc
+\series default 
+ - Range compression, interference suppression and motion compensation correctio
+n implementation (C executable - 
+\begin_inset Quotes eld
+\end_inset 
+
+rngcom
+\begin_inset Quotes erd
+\end_inset 
+
+).
+\layout Itemize
+
+
+\series bold 
+StepFreqProc
+\series default 
+ - Step frequency processing (C executable - 
+\begin_inset Quotes eld
+\end_inset 
+
+stepf
+\begin_inset Quotes erd
+\end_inset 
+
+).
+\layout Itemize
+
+
+\series bold 
+CornerTurn
+\series default 
+ - Corner turn the range compressed file (C executable - 
+\begin_inset Quotes eld
+\end_inset 
+
+corner
+\begin_inset Quotes erd
+\end_inset 
+
+).
+\layout Itemize
+
+
+\series bold 
+AzProc
+\series default 
+ - Range curvature correction, azimuth compression and multilook (C executable
+ - 
+\begin_inset Quotes eld
+\end_inset 
+
+azcom
+\begin_inset Quotes erd
+\end_inset 
+
+).
+\layout Itemize
+
+
+\series bold 
+Float2Tiff
+\series default 
+ - Convert floating point output from azimuth compression to TIFF file for
+ easy viewing (various C executables, all working on binary data - 
+\begin_inset Quotes eld
+\end_inset 
+
+iq2mag
+\begin_inset Quotes erd
+\end_inset 
+
+, 
+\begin_inset Quotes eld
+\end_inset 
+
+flt2byte
+\begin_inset Quotes erd
+\end_inset 
+
+, 
+\begin_inset Quotes eld
+\end_inset 
+
+b2tif
+\begin_inset Quotes erd
+\end_inset 
+
+).
+ 
+\begin_inset Quotes eld
+\end_inset 
+
+iq2mag
+\begin_inset Quotes erd
+\end_inset 
+
+ converts complex data to magnitude or power, 
+\begin_inset Quotes eld
+\end_inset 
+
+flt2byte
+\begin_inset Quotes erd
+\end_inset 
+
+ converts floating point data to unsigned char, 
+\begin_inset Quotes eld
+\end_inset 
+
+b2tif
+\begin_inset Quotes erd
+\end_inset 
+
+ creates TIFF format file from unsigned char data.
+\layout Itemize
+
+
+\series bold 
+EndianSwap -
+\series default 
+ Swap endian format (C executable - 
+\begin_inset Quotes eld
+\end_inset 
+
+swapend
+\begin_inset Quotes erd
+\end_inset 
+
+).
+\layout Itemize
+
+
+\series bold 
+Orient
+\series default 
+ - Convert from azimuth line format to range line format (uses corner turn
+ C executable - ``corner
+\begin_inset Quotes erd
+\end_inset 
+
+)
+\layout Itemize
+
+
+\series bold 
+ImageLog
+\series default 
+ - Create image log file with geocoding info, etc.
+ (Python code - not standalone) 
+\layout Itemize
+
+
+\series bold 
+CleanUp
+\series default 
+ - Remove all temporary data and log files (Python code - not standalone).
+\layout Chapter
+
+Detailed Design
+\layout Standard
+
+Note: the built-in Python and C header files and functions are not included
+ in the sections below.
+ 
+\layout Section
+
+G2 Processor Main Program - g2.py
+\layout Subsection*
+
+Name:
+\layout Standard
+
+Python program in file g2.py.
+\layout Subsection*
+
+Interface:
+\layout Standard
+
+The following table describes the API for this routine:
+\layout Standard
+\added_space_top 0.375cm \added_space_bottom 0.375cm \align center \LyXTable
+multicol5
+5 4 0 0 -1 -1 -1 -1
+1 1 0 0
+1 0 0 0
+1 0 0 0
+1 0 0 0
+1 1 0 0
+2 1 0 "50mm" ""
+2 1 0 "" ""
+2 1 0 "" ""
+2 1 1 "52mm" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+1 2 1 1 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+
+parameter
+\newline 
+type
+\newline 
+in/out
+\newline 
+description
+\newline 
+configuration_file
+\newline 
+ASCII file
+\newline 
+in
+\newline 
+contains the processor config parameters
+\newline 
+image_log_file
+\newline 
+ASCII file
+\newline 
+out
+\newline 
+log of processed image parameters
+\newline 
+image_data_file
+\newline 
+binary float
+\newline 
+out
+\newline 
+4-byte floating point binary output
+\newline 
+image_tiff_file
+\newline 
+binary
+\newline 
+out
+\newline 
+TIFF format image file
+\layout Subsection*
+
+Functionality:
+\layout Standard
+
+Reads in the processor- and radar configuration parameters, sets up configuratio
+n files for the various processing modules on-the-fly, performs error handling,
+ cleans up temporary files.
+ 
+\layout Subsection*
+
+Dependancies/Resources used:
+\layout Standard
+
+Small memory footprint.
+\layout Standard
+
+Requires files: 
+\layout Itemize
+
+Gnuplot.py (Python interface to gnuplot plotting program) 
+\layout Itemize
+
+g2tmpl.py (g2tmpl module, contains functions only)
+\layout Itemize
+
+g2tools.py (g2tools module, defines class G2Config)
+\layout Subsection*
+
+Subordinates:
+\layout Standard
+
+The following functions from the g2tmpl module are called:
+\layout Itemize
+
+printHelp()
+\layout Itemize
+
+createRadarCfgTmpl()
+\layout Itemize
+
+createProcCfgTmpl()
+\layout Itemize
+
+createHTMLUserManual()
+\layout Standard
+
+The following functions from the g2tools module are called:
+\layout Itemize
+
+G2Config()
+\layout Itemize
+
+addCfgFile()
+\layout Itemize
+
+versionControl()
+\layout Itemize
+
+checkForOnly()
+\layout Itemize
+
+inferParams()
+\layout Itemize
+
+initChecks()
+\layout Itemize
+
+parseParam()
+\layout Itemize
+
+createStepFreqUserFile()
+\layout Itemize
+
+createRngProcCmdFile()
+\layout Itemize
+
+createStepFreqProcCmdFile()
+\layout Itemize
+
+createAzProcCmdFile()
+\layout Itemize
+
+writeImageLog()
+\layout Standard
+
+The following standalone executables are called:
+\layout Itemize
+
+imu_unpack
+\layout Itemize
+
+g2unpk_dgps.py
+\layout Itemize
+
+g2mocfilt.py
+\layout Itemize
+
+mocomp
+\layout Itemize
+
+sniffdc
+\layout Itemize
+
+corner
+\layout Itemize
+
+iq2mag
+\layout Itemize
+
+flt2byte
+\layout Itemize
+
+b2tif
+\layout Itemize
+
+swapend
+\layout Section
+
+g2tmpl - createRadarCfgFile()
+\layout Subsection*
+
+Name:
+\layout Standard
+
+createRadarCfgFile() in file g2tmpl.py
+\layout Subsection*
+
+Interface:
+\layout Standard
+
+The following table describes the API for this routine:
+\layout Standard
+\added_space_top 0.375cm \added_space_bottom 0.375cm \align center \LyXTable
+multicol5
+3 4 0 0 -1 -1 -1 -1
+1 1 0 0
+1 0 0 0
+1 1 0 0
+2 1 0 "50mm" ""
+2 1 0 "" ""
+2 1 0 "" ""
+2 1 1 "52mm" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+1 2 1 1 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+
+parameter
+\newline 
+type
+\newline 
+in/out
+\newline 
+description
+\newline 
+filename
+\newline 
+string
+\newline 
+in
+\newline 
+file to which config template written
+\newline 
+<return value>
+\newline 
+int
+\newline 
+out
+\newline 
+0 = success
+\layout Subsection*
+
+Functionality:
+\layout Standard
+
+Writes out a template radar configuration file including notes on usage.
+\layout Subsection*
+
+Dependancies/Resources used:
+\layout Standard
+
+Small memory footprint.
+\layout Subsection*
+
+Subordinates:
+\layout Standard
+
+none
+\layout Section
+
+g2tmpl - createProcCfgFile()
+\layout Subsection*
+
+Name:
+\layout Standard
+
+createProcCfgFile() in file g2tmpl.py
+\layout Subsection*
+
+Interface:
+\layout Standard
+
+The following table describes the API for this routine:
+\layout Standard
+\added_space_top 0.375cm \added_space_bottom 0.375cm \align center \LyXTable
+multicol5
+3 4 0 0 -1 -1 -1 -1
+1 1 0 0
+1 0 0 0
+1 1 0 0
+2 1 0 "50mm" ""
+2 1 0 "" ""
+2 1 0 "" ""
+2 1 1 "52mm" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+1 2 1 1 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+
+parameter
+\newline 
+type
+\newline 
+in/out
+\newline 
+description
+\newline 
+filename
+\newline 
+string
+\newline 
+in
+\newline 
+file to which config template written
+\newline 
+<return value>
+\newline 
+int
+\newline 
+out
+\newline 
+0 = success
+\layout Subsection*
+
+Functionality:
+\layout Standard
+
+Writes out a template processor configuration file including notes on usage.
+\layout Subsection*
+
+Dependancies/Resources used:
+\layout Standard
+
+Small memory footprint.
+\layout Subsection*
+
+Subordinates:
+\layout Standard
+
+none
+\layout Section
+
+g2tmpl - printHelp()
+\layout Subsection*
+
+Name:
+\layout Standard
+
+printHelp() in file g2tmpl.py
+\layout Subsection*
+
+Interface:
+\layout Standard
+
+N/A
+\layout Subsection*
+
+Functionality:
+\layout Standard
+
+Print quick help information to screen
+\layout Subsection*
+
+Dependancies/Resources used
+\layout Standard
+
+N/A
+\layout Subsection*
+
+Subordinates:
+\layout Standard
+
+none
+\layout Section
+
+g2tmpl - createHTMLUserManual()
+\layout Subsection*
+
+Name:
+\layout Standard
+
+createHTMLUserManual() in file g2tmpl.py
+\layout Subsection*
+
+Interface:
+\layout Standard
+
+The following table describes the API for this routine:
+\layout Standard
+\added_space_top 0.375cm \added_space_bottom 0.375cm \align center \LyXTable
+multicol5
+3 4 0 0 -1 -1 -1 -1
+1 1 0 0
+1 0 0 0
+1 1 0 0
+2 1 0 "50mm" ""
+2 1 0 "" ""
+2 1 0 "" ""
+2 1 1 "52mm" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+1 2 1 1 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+
+parameter
+\newline 
+type
+\newline 
+in/out
+\newline 
+description
+\newline 
+filename
+\newline 
+string
+\newline 
+in
+\newline 
+file name to which to write User Manual
+\newline 
+<return value>
+\newline 
+int
+\newline 
+out
+\newline 
+0 = success
+\layout Subsection*
+
+Functionality:
+\layout Standard
+
+Writes out the G2 User Manual in HTML format.
+\layout Subsection*
+
+Dependancies/Resources used:
+\layout Standard
+
+N/A
+\layout Subsection*
+
+Subordinates:
+\layout Standard
+
+none
+\layout Section
+
+g2tools - addCfgFile()
+\layout Subsection*
+
+Name:
+\layout Standard
+
+class G2Config, method addCfgFile() in file g2tools.py
+\layout Subsection*
+
+Interface:
+\layout Standard
+
+The following table describes the API for this routine:
+\layout Standard
+\added_space_top 0.375cm \added_space_bottom 0.375cm \align center \LyXTable
+multicol5
+3 4 0 0 -1 -1 -1 -1
+1 1 0 0
+1 0 0 0
+1 1 0 0
+2 1 0 "50mm" ""
+2 1 0 "" ""
+2 1 0 "" ""
+2 1 1 "52mm" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+1 2 1 1 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+
+parameter
+\newline 
+type
+\newline 
+in/out
+\newline 
+description
+\newline 
+FileName
+\newline 
+string
+\newline 
+in
+\newline 
+input configuration file name 
+\newline 
+<return value>
+\newline 
+int
+\newline 
+out
+\newline 
+0 = success
+\layout Subsection*
+
+Functionality:
+\layout Standard
+
+Add the contents of the configuration file to the current object's `cfg'
+ dictionary.
+ 
+\layout Subsection*
+
+Dependancies/Resources used:
+\layout Standard
+
+N/A
+\layout Subsection*
+
+Subordinates:
+\layout Standard
+
+none
+\layout Section
+
+g2tools - parseParam()
+\layout Subsection*
+
+Name:
+\layout Standard
+
+class G2Config, method parseParam() in file g2tools.py
+\layout Subsection*
+
+Interface:
+\layout Standard
+
+The following table describes the API for this routine:
+\layout Standard
+\added_space_top 0.375cm \added_space_bottom 0.375cm \align center \LyXTable
+multicol5
+6 4 0 0 -1 -1 -1 -1
+1 1 0 0
+1 0 0 0
+1 0 0 0
+1 0 0 0
+1 0 0 0
+1 1 0 0
+2 1 0 "50mm" ""
+2 1 0 "" ""
+2 1 0 "" ""
+2 1 1 "52mm" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+1 2 1 1 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+
+parameter
+\newline 
+type
+\newline 
+in/out
+\newline 
+description
+\newline 
+FileName
+\newline 
+string
+\newline 
+in
+\newline 
+name of file to search 
+\newline 
+SearchStr
+\newline 
+string
+\newline 
+in
+\newline 
+string to find
+\newline 
+KeyStr
+\newline 
+string
+\newline 
+in
+\newline 
+dictionary key to use for adding parameter
+\newline 
+dict
+\newline 
+dictionary 
+\newline 
+in
+\newline 
+name of dictionary to use
+\newline 
+<return value>
+\newline 
+int
+\newline 
+out
+\newline 
+0 = success, -1 = error
+\layout Subsection*
+
+Functionality:
+\layout Standard
+
+Parses a specified ASCII file reading each line, and looks for a specified
+ substring in the line read.
+ If located, finds the colon and then adds the parameter value specified
+ after the colon to a specified Python dictionary object (either 
+\begin_inset Quotes eld
+\end_inset 
+
+cfg
+\begin_inset Quotes erd
+\end_inset 
+
+ or 
+\begin_inset Quotes eld
+\end_inset 
+
+wrk
+\begin_inset Quotes erd
+\end_inset 
+
+).
+ 
+\layout Subsection*
+
+Dependancies/Resources used:
+\layout Standard
+
+N/A
+\layout Subsection*
+
+Subordinates:
+\layout Standard
+
+none
+\layout Section
+
+g2tools - convSecsToTimeStr()
+\layout Subsection*
+
+Name:
+\layout Standard
+
+class G2Config, method conSecsToTimeStr(), in file g2tools.py
+\layout Subsection*
+
+Interface:
+\layout Standard
+
+The following table describes the API for this routine:
+\layout Standard
+\added_space_top 0.375cm \added_space_bottom 0.375cm \align center \LyXTable
+multicol5
+4 4 0 0 -1 -1 -1 -1
+1 1 0 0
+1 0 0 0
+1 0 0 0
+1 1 0 0
+2 1 0 "50mm" ""
+2 1 0 "" ""
+2 1 0 "" ""
+2 1 1 "52mm" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+1 2 1 1 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+
+parameter
+\newline 
+type
+\newline 
+in/out
+\newline 
+description
+\newline 
+inSecs
+\newline 
+float
+\newline 
+in
+\newline 
+number of seconds
+\newline 
+KeyStr
+\newline 
+string
+\newline 
+in
+\newline 
+dictionary key for result
+\newline 
+<return value>
+\newline 
+int
+\newline 
+out
+\newline 
+0 = success
+\layout Subsection*
+
+Functionality:
+\layout Standard
+
+Convert time in seconds to hours, minutes and seconds.
+\layout Subsection*
+
+Dependancies/Resources used:
+\layout Standard
+
+N/A/
+\layout Subsection*
+
+Subordinates:
+\layout Standard
+
+none
+\layout Section
+
+g2tools - convDegToDegMinSec()
+\layout Subsection*
+
+Name:
+\layout Standard
+
+class G2Config, method conDegToDegMinSec(), in file g2tools.py
+\layout Subsection*
+
+Interface:
+\layout Standard
+
+The following table describes the API for this routine:
+\layout Standard
+\added_space_top 0.375cm \added_space_bottom 0.375cm \align center \LyXTable
+multicol5
+4 4 0 0 -1 -1 -1 -1
+1 1 0 0
+1 0 0 0
+1 0 0 0
+1 1 0 0
+2 1 0 "50mm" ""
+2 1 0 "" ""
+2 1 0 "" ""
+2 1 1 "52mm" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+1 2 1 1 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+
+parameter
+\newline 
+type
+\newline 
+in/out
+\newline 
+description
+\newline 
+inDeg
+\newline 
+float
+\newline 
+in
+\newline 
+number of degrees
+\newline 
+KeyStr
+\newline 
+string
+\newline 
+in
+\newline 
+dictionary key for result
+\newline 
+<return value>
+\newline 
+int
+\newline 
+out
+\newline 
+0 = success
+\layout Subsection*
+
+Functionality:
+\layout Standard
+
+Convert angle in degrees to degrees, minutes and seconds.
+\layout Subsection*
+
+Dependancies/Resources used:
+\layout Standard
+
+N/A
+\layout Subsection*
+
+Subordinates:
+\layout Standard
+
+none
+\layout Section
+
+g2tools - displayCfgContents()
+\layout Subsection*
+
+Name:
+\layout Standard
+
+class G2Config, method displayCfgContents in file g2tools.py
+\layout Subsection*
+
+Interface:
+\layout Standard
+
+None
+\layout Subsection*
+
+Functionality:
+\layout Standard
+
+Display the contents of the 
+\begin_inset Quotes eld
+\end_inset 
+
+cfg
+\begin_inset Quotes erd
+\end_inset 
+
+ dictionary.
+\layout Subsection*
+
+Dependancies/Resources used:
+\layout Standard
+
+N/A
+\layout Subsection*
+
+Subordinates:
+\layout Standard
+
+none
+\layout Section
+
+g2tools - displayWrkContents()
+\layout Subsection*
+
+Name:
+\layout Standard
+
+class G2Config, method displayWrkContents in file g2tools.py
+\layout Subsection*
+
+Interface:
+\layout Standard
+
+None
+\layout Subsection*
+
+Functionality:
+\layout Standard
+
+Display the contents of the 
+\begin_inset Quotes eld
+\end_inset 
+
+wrk
+\begin_inset Quotes erd
+\end_inset 
+
+ dictionary.
+\layout Subsection*
+
+Dependancies/Resources used:
+\layout Standard
+
+N/A
+\layout Subsection*
+
+Subordinates:
+\layout Standard
+
+none
+\layout Section
+
+g2tools - versionControl()
+\layout Subsection*
+
+Name:
+\layout Standard
+
+class G2Config, method versionControl in file g2tools.py
+\layout Subsection*
+
+Interface:
+\layout Standard
+
+None
+\layout Subsection*
+
+Functionality:
+\layout Standard
+
+Enable backwards compatibility with previous versions of the radar configuration
+ file and the processor configuration file.
+\layout Subsection*
+
+Dependancies/Resources used:
+\layout Standard
+
+N/A
+\layout Subsection*
+
+Subordinates:
+\layout Standard
+
+none
+\layout Section
+
+g2tools - disableAll()
+\layout Subsection*
+
+Name:
+\layout Standard
+
+class G2Config, method disableAll() in file g2tools.py
+\layout Subsection*
+
+Interface:
+\layout Standard
+
+N/A
+\layout Subsection*
+
+Functionality:
+\layout Standard
+
+Switch all processing modules to 
+\begin_inset Quotes eld
+\end_inset 
+
+n
+\begin_inset Quotes erd
+\end_inset 
+
+ if they are not already flagged as 
+\begin_inset Quotes eld
+\end_inset 
+
+off
+\begin_inset Quotes erd
+\end_inset 
+
+.
+\layout Subsection*
+
+Dependancies/Resources used:
+\layout Standard
+
+N/A
+\layout Subsection*
+
+Subordinates:
+\layout Standard
+
+none
+\layout Section
+
+g2tools - checkForOnly()
+\layout Subsection*
+
+Name:
+\layout Standard
+
+class G2Config, method checkForOnly() in file g2tools.py
+\layout Subsection*
+
+Interface:
+\layout Standard
+
+N/A
+\layout Subsection*
+
+Functionality:
+\layout Standard
+
+Check through all the processing module flags to find first one (if any)
+ flagged as 
+\begin_inset Quotes eld
+\end_inset 
+
+only
+\begin_inset Quotes erd
+\end_inset 
+
+.
+ If found, disable all modules by calling the disableAll() method and then
+ set the module flagged as 
+\begin_inset Quotes eld
+\end_inset 
+
+only
+\begin_inset Quotes erd
+\end_inset 
+
+ to 
+\begin_inset Quotes eld
+\end_inset 
+
+y
+\begin_inset Quotes erd
+\end_inset 
+
+.
+\layout Subsection*
+
+Pseudo-code:
+\layout Standard
+
+<optional: include pseudo-code or flowchart here if above section doesn't
+ adequately describe operatiuon>
+\layout Subsection*
+
+Dependancies/Resources used:
+\layout Standard
+
+N/A
+\layout Subsection*
+
+Subordinates:
+\layout Itemize
+
+disableAll()
+\layout Section
+
+g2tools - initChecks()
+\layout Subsection*
+
+Name:
+\layout Standard
+
+class G2Config, method initChecks(), in file g2tools.py
+\layout Subsection*
+
+Interface:
+\layout Standard
+
+N/A
+\layout Subsection*
+
+Functionality:
+\layout Standard
+
+Perform some consistency and logic checks at start of processing run.
+\layout Subsection*
+
+Dependancies/Resources used:
+\layout Standard
+
+N/A
+\layout Subsection*
+
+Subordinates:
+\layout Standard
+
+none
+\layout Section
+
+g2tools - inferParams()
+\layout Subsection*
+
+Name:
+\layout Standard
+
+class G2Config, method inferParams(), in file g2tools.py
+\layout Subsection*
+
+Interface:
+\layout Standard
+
+N/A
+\layout Subsection*
+
+Functionality:
+\layout Standard
+
+Infer processing parameters based on the configuration parameters supplied.
+\layout Subsection*
+
+Dependancies/Resources used:
+\layout Standard
+
+N/A
+\layout Subsection*
+
+Subordinates:
+\layout Standard
+
+none
+\layout Section
+
+g2tools - createStepFreqUserFile()
+\layout Subsection*
+
+Name:
+\layout Standard
+
+class G2Config, method createStepFreqUserFile(), in file g2tools.py
+\layout Subsection*
+
+Interface:
+\layout Standard
+
+N/A
+\layout Subsection*
+
+Functionality:
+\layout Standard
+
+Create a step frequency processing user file.
+ This is required by rngcom for normal step freq mode.
+ Uses parameters in the 
+\begin_inset Quotes eld
+\end_inset 
+
+cfg
+\begin_inset Quotes erd
+\end_inset 
+
+ and 
+\begin_inset Quotes eld
+\end_inset 
+
+wrk
+\begin_inset Quotes erd
+\end_inset 
+
+ dictionaries.
+\layout Subsection*
+
+Dependancies/Resources used:
+\layout Standard
+
+N/A
+\layout Subsection*
+
+Subordinates:
+\layout Standard
+
+none
+\layout Section
+
+g2tools - calcAzProcParams()
+\layout Subsection*
+
+Name:
+\layout Standard
+
+class G2Config, method calcAzProcParams(), in file g2tools.py
+\layout Subsection*
+
+Interface:
+\layout Standard
+
+N/A
+\layout Subsection*
+
+Functionality:
+\layout Standard
+
+Set up some parameters for azimuth processing.
+ Uses parameters in the 
+\begin_inset Quotes eld
+\end_inset 
+
+cfg
+\begin_inset Quotes erd
+\end_inset 
+
+ dictionary.
+\layout Subsection*
+
+Dependancies/Resources used:
+\layout Standard
+
+N/A
+\layout Subsection*
+
+Subordinates:
+\layout Standard
+
+none
+\layout Section
+
+g2tools - writeImageLog()
+\layout Subsection*
+
+Name:
+\layout Standard
+
+class G2Config, method writeImageLog(), in file g2tools.py
+\layout Subsection*
+
+Interface:
+\layout Standard
+
+The following table describes the API for this routine:
+\layout Standard
+\added_space_top 0.375cm \added_space_bottom 0.375cm \align center \LyXTable
+multicol5
+6 4 0 0 -1 -1 -1 -1
+1 1 0 0
+1 0 0 0
+1 0 0 0
+1 0 0 0
+1 0 0 0
+1 1 0 0
+2 1 0 "50mm" ""
+2 1 0 "" ""
+2 1 0 "" ""
+2 1 1 "52mm" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+1 2 1 1 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+
+parameter
+\newline 
+type
+\newline 
+in/out
+\newline 
+description
+\newline 
+ILogName
+\newline 
+string
+\newline 
+in
+\newline 
+image log file name
+\newline 
+MLogName
+\newline 
+string
+\newline 
+in
+\newline 
+motion log file name
+\newline 
+RLogName
+\newline 
+string
+\newline 
+in
+\newline 
+range processing log file name
+\newline 
+ALogName
+\newline 
+string
+\newline 
+in
+\newline 
+azimuth processing log file name
+\newline 
+<return value>
+\newline 
+int
+\newline 
+out
+\newline 
+0 = success
+\layout Subsection*
+
+Functionality:
+\layout Standard
+
+Parse the various log files from the different processing modules and write
+ out the image log file.
+ The image log file contains mostly image specific information.
+\layout Subsection*
+
+Dependancies/Resources used:
+\layout Standard
+
+N/A
+\layout Subsection*
+
+Subordinates:
+\layout Itemize
+
+parseParam()
+\layout Itemize
+
+convSecsToTimeStr()
+\layout Itemize
+
+convDegToDegMinSec()
+\layout Section
+
+g2tools - createRngProcCmdFile()
+\layout Subsection*
+
+Name:
+\layout Standard
+
+class G2Config, method createRngProcCmdFile(), in file g2tools.py
+\layout Subsection*
+
+Interface:
+\layout Standard
+
+The following table describes the API for this routine:
+\layout Standard
+\added_space_top 0.375cm \added_space_bottom 0.375cm \align center \LyXTable
+multicol5
+3 4 0 0 -1 -1 -1 -1
+1 1 0 0
+1 0 0 0
+1 1 0 0
+2 1 0 "50mm" ""
+2 1 0 "" ""
+2 1 0 "" ""
+2 1 1 "52mm" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+1 2 1 1 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+
+parameter
+\newline 
+type
+\newline 
+in/out
+\newline 
+description
+\newline 
+FileName
+\newline 
+string
+\newline 
+in
+\newline 
+name for range processing config file
+\newline 
+<return value>
+\newline 
+int
+\newline 
+out
+\newline 
+0 = success, -1 = error
+\layout Subsection*
+
+Functionality:
+\layout Standard
+
+Creates the range processing (rngcom) configuration file using parameters
+ from the 
+\begin_inset Quotes eld
+\end_inset 
+
+cfg
+\begin_inset Quotes erd
+\end_inset 
+
+ and 
+\begin_inset Quotes eld
+\end_inset 
+
+wrk
+\begin_inset Quotes erd
+\end_inset 
+
+ dictionaries.
+\layout Subsection*
+
+Dependancies/Resources used:
+\layout Standard
+
+N/A
+\layout Subsection*
+
+Subordinates:
+\layout Standard
+
+none
+\layout Section
+
+g2tools - createStepFreqProcCmdFile()
+\layout Subsection*
+
+Name:
+\layout Standard
+
+class G2Config, method createStepFreqProcCmdFile(), in file g2tools.py
+\layout Subsection*
+
+Interface:
+\layout Standard
+
+The following table describes the API for this routine:
+\layout Standard
+\added_space_top 0.375cm \added_space_bottom 0.375cm \align center \LyXTable
+multicol5
+3 4 0 0 -1 -1 -1 -1
+1 1 0 0
+1 0 0 0
+1 1 0 0
+2 1 0 "50mm" ""
+2 1 0 "" ""
+2 1 0 "" ""
+2 1 1 "52mm" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+1 2 1 1 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+
+parameter
+\newline 
+type
+\newline 
+in/out
+\newline 
+description
+\newline 
+FileName
+\newline 
+string
+\newline 
+in
+\newline 
+name for step freq processing config file
+\newline 
+<return value>
+\newline 
+int
+\newline 
+out
+\newline 
+0 = success, -1 = error
+\layout Subsection*
+
+Functionality:
+\layout Standard
+
+Creates the step frequency processing (stepf) configuration file using parameter
+s from the 
+\begin_inset Quotes eld
+\end_inset 
+
+cfg
+\begin_inset Quotes erd
+\end_inset 
+
+ and 
+\begin_inset Quotes eld
+\end_inset 
+
+wrk
+\begin_inset Quotes erd
+\end_inset 
+
+ dictionaries.
+\layout Subsection*
+
+Dependancies/Resources used:
+\layout Standard
+
+N/A
+\layout Subsection*
+
+Subordinates:
+\layout Standard
+
+none
+\layout Section
+
+g2tools - createAzProcCmdFile()
+\layout Subsection*
+
+Name:
+\layout Standard
+
+class G2Config, method createAzProcCmdFile(), in file g2tools.py
+\layout Subsection*
+
+Interface:
+\layout Standard
+
+The following table describes the API for this routine:
+\layout Standard
+\added_space_top 0.375cm \added_space_bottom 0.375cm \align center \LyXTable
+multicol5
+3 4 0 0 -1 -1 -1 -1
+1 1 0 0
+1 0 0 0
+1 1 0 0
+2 1 0 "50mm" ""
+2 1 0 "" ""
+2 1 0 "" ""
+2 1 1 "52mm" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+1 2 1 1 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+
+parameter
+\newline 
+type
+\newline 
+in/out
+\newline 
+description
+\newline 
+FileName
+\newline 
+string
+\newline 
+in
+\newline 
+name for azimuth processing config file
+\newline 
+<return value>
+\newline 
+int
+\newline 
+out
+\newline 
+0 = success, -1 = error
+\layout Subsection*
+
+Functionality:
+\layout Standard
+
+Creates the azimuth processing (azcom) configuration file using parameters
+ from the 
+\begin_inset Quotes eld
+\end_inset 
+
+cfg
+\begin_inset Quotes erd
+\end_inset 
+
+ and 
+\begin_inset Quotes eld
+\end_inset 
+
+wrk
+\begin_inset Quotes erd
+\end_inset 
+
+ dictionaries.
+\layout Subsection*
+
+Dependancies/Resources used:
+\layout Standard
+
+N/A
+\layout Subsection*
+
+Subordinates:
+\layout Standard
+
+none
+\layout Section
+
+<module name>
+\layout Subsection*
+
+Name:
+\layout Standard
+
+<module/function name>, in file <filename.c>
+\layout Subsection*
+
+Interface:
+\layout Standard
+
+The following table describes the API for this routine:
+\layout Standard
+\added_space_top 0.375cm \added_space_bottom 0.375cm \align center \LyXTable
+multicol5
+7 4 0 0 -1 -1 -1 -1
+1 1 0 0
+1 0 0 0
+1 0 0 0
+1 0 0 0
+1 0 0 0
+1 0 0 0
+1 1 0 0
+2 1 0 "50mm" ""
+2 1 0 "" ""
+2 1 0 "" ""
+2 1 1 "52mm" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+1 2 1 1 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+
+parameter
+\newline 
+type
+\newline 
+in/out
+\newline 
+description
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+<return value>
+\newline 
+int
+\newline 
+out
+\newline 
+0 = success, -1 = error
+\layout Subsection*
+
+Functionality:
+\layout Standard
+
+<describe the operation/functionality of this function>
+\layout Subsection*
+
+Pseudo-code:
+\layout Standard
+
+<optional: include pseudo-code or flowchart here if above section doesn't
+ adequately describe operatiuon>
+\layout Subsection*
+
+Dependancies/Resources used:
+\layout Standard
+
+<describe memory and any other system resources used>
+\layout Standard
+
+In addition, the following header files are required:
+\layout Itemize
+
+<list of header files>
+\layout Subsection*
+
+Subordinates:
+\layout Standard
+
+<functions called from this one>
+\layout Subsection*
+
+Library:
+\layout Standard
+
+This routine is contained in <library-name>
+\layout Section
+
+<module name>
+\layout Subsection*
+
+Name:
+\layout Standard
+
+<module/function name>, in file <filename.c>
+\layout Subsection*
+
+Interface:
+\layout Standard
+
+The following table describes the API for this routine:
+\layout Standard
+\added_space_top 0.375cm \added_space_bottom 0.375cm \align center \LyXTable
+multicol5
+7 4 0 0 -1 -1 -1 -1
+1 1 0 0
+1 0 0 0
+1 0 0 0
+1 0 0 0
+1 0 0 0
+1 0 0 0
+1 1 0 0
+2 1 0 "50mm" ""
+2 1 0 "" ""
+2 1 0 "" ""
+2 1 1 "52mm" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+1 2 1 1 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+
+parameter
+\newline 
+type
+\newline 
+in/out
+\newline 
+description
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+<return value>
+\newline 
+int
+\newline 
+out
+\newline 
+0 = success, -1 = error
+\layout Subsection*
+
+Functionality:
+\layout Standard
+
+<describe the operation/functionality of this function>
+\layout Subsection*
+
+Pseudo-code:
+\layout Standard
+
+<optional: include pseudo-code or flowchart here if above section doesn't
+ adequately describe operatiuon>
+\layout Subsection*
+
+Dependancies/Resources used:
+\layout Standard
+
+<describe memory and any other system resources used>
+\layout Standard
+
+In addition, the following header files are required:
+\layout Itemize
+
+<list of header files>
+\layout Subsection*
+
+Subordinates:
+\layout Standard
+
+<functions called from this one>
+\layout Subsection*
+
+Library:
+\layout Standard
+
+This routine is contained in <library-name>
+\layout Section
+
+<module name>
+\layout Subsection*
+
+Name:
+\layout Standard
+
+<module/function name>, in file <filename.c>
+\layout Subsection*
+
+Interface:
+\layout Standard
+
+The following table describes the API for this routine:
+\layout Standard
+\added_space_top 0.375cm \added_space_bottom 0.375cm \align center \LyXTable
+multicol5
+7 4 0 0 -1 -1 -1 -1
+1 1 0 0
+1 0 0 0
+1 0 0 0
+1 0 0 0
+1 0 0 0
+1 0 0 0
+1 1 0 0
+2 1 0 "50mm" ""
+2 1 0 "" ""
+2 1 0 "" ""
+2 1 1 "52mm" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+1 2 1 1 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+
+parameter
+\newline 
+type
+\newline 
+in/out
+\newline 
+description
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+<return value>
+\newline 
+int
+\newline 
+out
+\newline 
+0 = success, -1 = error
+\layout Subsection*
+
+Functionality:
+\layout Standard
+
+<describe the operation/functionality of this function>
+\layout Subsection*
+
+Pseudo-code:
+\layout Standard
+
+<optional: include pseudo-code or flowchart here if above section doesn't
+ adequately describe operatiuon>
+\layout Subsection*
+
+Dependancies/Resources used:
+\layout Standard
+
+<describe memory and any other system resources used>
+\layout Standard
+
+In addition, the following header files are required:
+\layout Itemize
+
+<list of header files>
+\layout Subsection*
+
+Subordinates:
+\layout Standard
+
+<functions called from this one>
+\layout Subsection*
+
+Library:
+\layout Standard
+
+This routine is contained in <library-name>
+\layout Section
+
+<module name>
+\layout Subsection*
+
+Name:
+\layout Standard
+
+<module/function name>, in file <filename.c>
+\layout Subsection*
+
+Interface:
+\layout Standard
+
+The following table describes the API for this routine:
+\layout Standard
+\added_space_top 0.375cm \added_space_bottom 0.375cm \align center \LyXTable
+multicol5
+7 4 0 0 -1 -1 -1 -1
+1 1 0 0
+1 0 0 0
+1 0 0 0
+1 0 0 0
+1 0 0 0
+1 0 0 0
+1 1 0 0
+2 1 0 "50mm" ""
+2 1 0 "" ""
+2 1 0 "" ""
+2 1 1 "52mm" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+1 2 1 1 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+
+parameter
+\newline 
+type
+\newline 
+in/out
+\newline 
+description
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+<return value>
+\newline 
+int
+\newline 
+out
+\newline 
+0 = success, -1 = error
+\layout Subsection*
+
+Functionality:
+\layout Standard
+
+<describe the operation/functionality of this function>
+\layout Subsection*
+
+Pseudo-code:
+\layout Standard
+
+<optional: include pseudo-code or flowchart here if above section doesn't
+ adequately describe operatiuon>
+\layout Subsection*
+
+Dependancies/Resources used:
+\layout Standard
+
+<describe memory and any other system resources used>
+\layout Standard
+
+In addition, the following header files are required:
+\layout Itemize
+
+<list of header files>
+\layout Subsection*
+
+Subordinates:
+\layout Standard
+
+<functions called from this one>
+\layout Subsection*
+
+Library:
+\layout Standard
+
+This routine is contained in <library-name>
+\layout Section
+
+<module name>
+\layout Subsection*
+
+Name:
+\layout Standard
+
+<module/function name>, in file <filename.c>
+\layout Subsection*
+
+Interface:
+\layout Standard
+
+The following table describes the API for this routine:
+\layout Standard
+\added_space_top 0.375cm \added_space_bottom 0.375cm \align center \LyXTable
+multicol5
+7 4 0 0 -1 -1 -1 -1
+1 1 0 0
+1 0 0 0
+1 0 0 0
+1 0 0 0
+1 0 0 0
+1 0 0 0
+1 1 0 0
+2 1 0 "50mm" ""
+2 1 0 "" ""
+2 1 0 "" ""
+2 1 1 "52mm" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+1 2 1 1 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+
+parameter
+\newline 
+type
+\newline 
+in/out
+\newline 
+description
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+<return value>
+\newline 
+int
+\newline 
+out
+\newline 
+0 = success, -1 = error
+\layout Subsection*
+
+Functionality:
+\layout Standard
+
+<describe the operation/functionality of this function>
+\layout Subsection*
+
+Pseudo-code:
+\layout Standard
+
+<optional: include pseudo-code or flowchart here if above section doesn't
+ adequately describe operatiuon>
+\layout Subsection*
+
+Dependancies/Resources used:
+\layout Standard
+
+<describe memory and any other system resources used>
+\layout Standard
+
+In addition, the following header files are required:
+\layout Itemize
+
+<list of header files>
+\layout Subsection*
+
+Subordinates:
+\layout Standard
+
+<functions called from this one>
+\layout Subsection*
+
+Library:
+\layout Standard
+
+This routine is contained in <library-name>
+\layout Section
+
+<module name>
+\layout Subsection*
+
+Name:
+\layout Standard
+
+<module/function name>, in file <filename.c>
+\layout Subsection*
+
+Interface:
+\layout Standard
+
+The following table describes the API for this routine:
+\layout Standard
+\added_space_top 0.375cm \added_space_bottom 0.375cm \align center \LyXTable
+multicol5
+7 4 0 0 -1 -1 -1 -1
+1 1 0 0
+1 0 0 0
+1 0 0 0
+1 0 0 0
+1 0 0 0
+1 0 0 0
+1 1 0 0
+2 1 0 "50mm" ""
+2 1 0 "" ""
+2 1 0 "" ""
+2 1 1 "52mm" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+1 2 1 1 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+
+parameter
+\newline 
+type
+\newline 
+in/out
+\newline 
+description
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+<return value>
+\newline 
+int
+\newline 
+out
+\newline 
+0 = success, -1 = error
+\layout Subsection*
+
+Functionality:
+\layout Standard
+
+<describe the operation/functionality of this function>
+\layout Subsection*
+
+Pseudo-code:
+\layout Standard
+
+<optional: include pseudo-code or flowchart here if above section doesn't
+ adequately describe operatiuon>
+\layout Subsection*
+
+Dependancies/Resources used:
+\layout Standard
+
+<describe memory and any other system resources used>
+\layout Standard
+
+In addition, the following header files are required:
+\layout Itemize
+
+<list of header files>
+\layout Subsection*
+
+Subordinates:
+\layout Standard
+
+<functions called from this one>
+\layout Subsection*
+
+Library:
+\layout Standard
+
+This routine is contained in <library-name>
+\layout Section
+
+<module name>
+\layout Subsection*
+
+Name:
+\layout Standard
+
+<module/function name>, in file <filename.c>
+\layout Subsection*
+
+Interface:
+\layout Standard
+
+The following table describes the API for this routine:
+\layout Standard
+\added_space_top 0.375cm \added_space_bottom 0.375cm \align center \LyXTable
+multicol5
+7 4 0 0 -1 -1 -1 -1
+1 1 0 0
+1 0 0 0
+1 0 0 0
+1 0 0 0
+1 0 0 0
+1 0 0 0
+1 1 0 0
+2 1 0 "50mm" ""
+2 1 0 "" ""
+2 1 0 "" ""
+2 1 1 "52mm" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+1 2 1 1 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+
+parameter
+\newline 
+type
+\newline 
+in/out
+\newline 
+description
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+<return value>
+\newline 
+int
+\newline 
+out
+\newline 
+0 = success, -1 = error
+\layout Subsection*
+
+Functionality:
+\layout Standard
+
+<describe the operation/functionality of this function>
+\layout Subsection*
+
+Pseudo-code:
+\layout Standard
+
+<optional: include pseudo-code or flowchart here if above section doesn't
+ adequately describe operatiuon>
+\layout Subsection*
+
+Dependancies/Resources used:
+\layout Standard
+
+<describe memory and any other system resources used>
+\layout Standard
+
+In addition, the following header files are required:
+\layout Itemize
+
+<list of header files>
+\layout Subsection*
+
+Subordinates:
+\layout Standard
+
+<functions called from this one>
+\layout Subsection*
+
+Library:
+\layout Standard
+
+This routine is contained in <library-name>
+\layout Section
+
+<module name>
+\layout Subsection*
+
+Name:
+\layout Standard
+
+<module/function name>, in file <filename.c>
+\layout Subsection*
+
+Interface:
+\layout Standard
+
+The following table describes the API for this routine:
+\layout Standard
+\added_space_top 0.375cm \added_space_bottom 0.375cm \align center \LyXTable
+multicol5
+7 4 0 0 -1 -1 -1 -1
+1 1 0 0
+1 0 0 0
+1 0 0 0
+1 0 0 0
+1 0 0 0
+1 0 0 0
+1 1 0 0
+2 1 0 "50mm" ""
+2 1 0 "" ""
+2 1 0 "" ""
+2 1 1 "52mm" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+1 2 1 1 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+
+parameter
+\newline 
+type
+\newline 
+in/out
+\newline 
+description
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+<return value>
+\newline 
+int
+\newline 
+out
+\newline 
+0 = success, -1 = error
+\layout Subsection*
+
+Functionality:
+\layout Standard
+
+<describe the operation/functionality of this function>
+\layout Subsection*
+
+Pseudo-code:
+\layout Standard
+
+<optional: include pseudo-code or flowchart here if above section doesn't
+ adequately describe operatiuon>
+\layout Subsection*
+
+Dependancies/Resources used:
+\layout Standard
+
+<describe memory and any other system resources used>
+\layout Standard
+
+In addition, the following header files are required:
+\layout Itemize
+
+<list of header files>
+\layout Subsection*
+
+Subordinates:
+\layout Standard
+
+<functions called from this one>
+\layout Subsection*
+
+Library:
+\layout Standard
+
+This routine is contained in <library-name>
+\layout Section
+
+<module name>
+\layout Subsection*
+
+Name:
+\layout Standard
+
+<module/function name>, in file <filename.c>
+\layout Subsection*
+
+Interface:
+\layout Standard
+
+The following table describes the API for this routine:
+\layout Standard
+\added_space_top 0.375cm \added_space_bottom 0.375cm \align center \LyXTable
+multicol5
+7 4 0 0 -1 -1 -1 -1
+1 1 0 0
+1 0 0 0
+1 0 0 0
+1 0 0 0
+1 0 0 0
+1 0 0 0
+1 1 0 0
+2 1 0 "50mm" ""
+2 1 0 "" ""
+2 1 0 "" ""
+2 1 1 "52mm" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+1 2 1 1 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+
+parameter
+\newline 
+type
+\newline 
+in/out
+\newline 
+description
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+<return value>
+\newline 
+int
+\newline 
+out
+\newline 
+0 = success, -1 = error
+\layout Subsection*
+
+Functionality:
+\layout Standard
+
+<describe the operation/functionality of this function>
+\layout Subsection*
+
+Pseudo-code:
+\layout Standard
+
+<optional: include pseudo-code or flowchart here if above section doesn't
+ adequately describe operatiuon>
+\layout Subsection*
+
+Dependancies/Resources used:
+\layout Standard
+
+<describe memory and any other system resources used>
+\layout Standard
+
+In addition, the following header files are required:
+\layout Itemize
+
+<list of header files>
+\layout Subsection*
+
+Subordinates:
+\layout Standard
+
+<functions called from this one>
+\layout Subsection*
+
+Library:
+\layout Standard
+
+This routine is contained in <library-name>
+\layout Section
+
+<module name>
+\layout Subsection*
+
+Name:
+\layout Standard
+
+<module/function name>, in file <filename.c>
+\layout Subsection*
+
+Interface:
+\layout Standard
+
+The following table describes the API for this routine:
+\layout Standard
+\added_space_top 0.375cm \added_space_bottom 0.375cm \align center \LyXTable
+multicol5
+7 4 0 0 -1 -1 -1 -1
+1 1 0 0
+1 0 0 0
+1 0 0 0
+1 0 0 0
+1 0 0 0
+1 0 0 0
+1 1 0 0
+2 1 0 "50mm" ""
+2 1 0 "" ""
+2 1 0 "" ""
+2 1 1 "52mm" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+1 2 1 1 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+
+parameter
+\newline 
+type
+\newline 
+in/out
+\newline 
+description
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+<return value>
+\newline 
+int
+\newline 
+out
+\newline 
+0 = success, -1 = error
+\layout Subsection*
+
+Functionality:
+\layout Standard
+
+<describe the operation/functionality of this function>
+\layout Subsection*
+
+Pseudo-code:
+\layout Standard
+
+<optional: include pseudo-code or flowchart here if above section doesn't
+ adequately describe operatiuon>
+\layout Subsection*
+
+Dependancies/Resources used:
+\layout Standard
+
+<describe memory and any other system resources used>
+\layout Standard
+
+In addition, the following header files are required:
+\layout Itemize
+
+<list of header files>
+\layout Subsection*
+
+Subordinates:
+\layout Standard
+
+<functions called from this one>
+\layout Subsection*
+
+Library:
+\layout Standard
+
+This routine is contained in <library-name>
+\layout Section
+
+<module name>
+\layout Subsection*
+
+Name:
+\layout Standard
+
+<module/function name>, in file <filename.c>
+\layout Subsection*
+
+Interface:
+\layout Standard
+
+The following table describes the API for this routine:
+\layout Standard
+\added_space_top 0.375cm \added_space_bottom 0.375cm \align center \LyXTable
+multicol5
+7 4 0 0 -1 -1 -1 -1
+1 1 0 0
+1 0 0 0
+1 0 0 0
+1 0 0 0
+1 0 0 0
+1 0 0 0
+1 1 0 0
+2 1 0 "50mm" ""
+2 1 0 "" ""
+2 1 0 "" ""
+2 1 1 "52mm" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+1 2 1 1 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+
+parameter
+\newline 
+type
+\newline 
+in/out
+\newline 
+description
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+<return value>
+\newline 
+int
+\newline 
+out
+\newline 
+0 = success, -1 = error
+\layout Subsection*
+
+Functionality:
+\layout Standard
+
+<describe the operation/functionality of this function>
+\layout Subsection*
+
+Pseudo-code:
+\layout Standard
+
+<optional: include pseudo-code or flowchart here if above section doesn't
+ adequately describe operatiuon>
+\layout Subsection*
+
+Dependancies/Resources used:
+\layout Standard
+
+<describe memory and any other system resources used>
+\layout Standard
+
+In addition, the following header files are required:
+\layout Itemize
+
+<list of header files>
+\layout Subsection*
+
+Subordinates:
+\layout Standard
+
+<functions called from this one>
+\layout Subsection*
+
+Library:
+\layout Standard
+
+This routine is contained in <library-name>
+\layout Section
+
+<module name>
+\layout Subsection*
+
+Name:
+\layout Standard
+
+<module/function name>, in file <filename.c>
+\layout Subsection*
+
+Interface:
+\layout Standard
+
+The following table describes the API for this routine:
+\layout Standard
+\added_space_top 0.375cm \added_space_bottom 0.375cm \align center \LyXTable
+multicol5
+7 4 0 0 -1 -1 -1 -1
+1 1 0 0
+1 0 0 0
+1 0 0 0
+1 0 0 0
+1 0 0 0
+1 0 0 0
+1 1 0 0
+2 1 0 "50mm" ""
+2 1 0 "" ""
+2 1 0 "" ""
+2 1 1 "52mm" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+1 2 1 1 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+
+parameter
+\newline 
+type
+\newline 
+in/out
+\newline 
+description
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+<return value>
+\newline 
+int
+\newline 
+out
+\newline 
+0 = success, -1 = error
+\layout Subsection*
+
+Functionality:
+\layout Standard
+
+<describe the operation/functionality of this function>
+\layout Subsection*
+
+Pseudo-code:
+\layout Standard
+
+<optional: include pseudo-code or flowchart here if above section doesn't
+ adequately describe operatiuon>
+\layout Subsection*
+
+Dependancies/Resources used:
+\layout Standard
+
+<describe memory and any other system resources used>
+\layout Standard
+
+In addition, the following header files are required:
+\layout Itemize
+
+<list of header files>
+\layout Subsection*
+
+Subordinates:
+\layout Standard
+
+<functions called from this one>
+\layout Subsection*
+
+Library:
+\layout Standard
+
+This routine is contained in <library-name>
+\layout Section
+
+<module name>
+\layout Subsection*
+
+Name:
+\layout Standard
+
+<module/function name>, in file <filename.c>
+\layout Subsection*
+
+Interface:
+\layout Standard
+
+The following table describes the API for this routine:
+\layout Standard
+\added_space_top 0.375cm \added_space_bottom 0.375cm \align center \LyXTable
+multicol5
+7 4 0 0 -1 -1 -1 -1
+1 1 0 0
+1 0 0 0
+1 0 0 0
+1 0 0 0
+1 0 0 0
+1 0 0 0
+1 1 0 0
+2 1 0 "50mm" ""
+2 1 0 "" ""
+2 1 0 "" ""
+2 1 1 "52mm" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+1 2 1 1 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+
+parameter
+\newline 
+type
+\newline 
+in/out
+\newline 
+description
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+<return value>
+\newline 
+int
+\newline 
+out
+\newline 
+0 = success, -1 = error
+\layout Subsection*
+
+Functionality:
+\layout Standard
+
+<describe the operation/functionality of this function>
+\layout Subsection*
+
+Pseudo-code:
+\layout Standard
+
+<optional: include pseudo-code or flowchart here if above section doesn't
+ adequately describe operatiuon>
+\layout Subsection*
+
+Dependancies/Resources used:
+\layout Standard
+
+<describe memory and any other system resources used>
+\layout Standard
+
+In addition, the following header files are required:
+\layout Itemize
+
+<list of header files>
+\layout Subsection*
+
+Subordinates:
+\layout Standard
+
+<functions called from this one>
+\layout Subsection*
+
+Library:
+\layout Standard
+
+This routine is contained in <library-name>
+\layout Section
+
+<module name>
+\layout Subsection*
+
+Name:
+\layout Standard
+
+<module/function name>, in file <filename.c>
+\layout Subsection*
+
+Interface:
+\layout Standard
+
+The following table describes the API for this routine:
+\layout Standard
+\added_space_top 0.375cm \added_space_bottom 0.375cm \align center \LyXTable
+multicol5
+7 4 0 0 -1 -1 -1 -1
+1 1 0 0
+1 0 0 0
+1 0 0 0
+1 0 0 0
+1 0 0 0
+1 0 0 0
+1 1 0 0
+2 1 0 "50mm" ""
+2 1 0 "" ""
+2 1 0 "" ""
+2 1 1 "52mm" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+1 2 1 1 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+
+parameter
+\newline 
+type
+\newline 
+in/out
+\newline 
+description
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+<return value>
+\newline 
+int
+\newline 
+out
+\newline 
+0 = success, -1 = error
+\layout Subsection*
+
+Functionality:
+\layout Standard
+
+<describe the operation/functionality of this function>
+\layout Subsection*
+
+Pseudo-code:
+\layout Standard
+
+<optional: include pseudo-code or flowchart here if above section doesn't
+ adequately describe operatiuon>
+\layout Subsection*
+
+Dependancies/Resources used:
+\layout Standard
+
+<describe memory and any other system resources used>
+\layout Standard
+
+In addition, the following header files are required:
+\layout Itemize
+
+<list of header files>
+\layout Subsection*
+
+Subordinates:
+\layout Standard
+
+<functions called from this one>
+\layout Subsection*
+
+Library:
+\layout Standard
+
+This routine is contained in <library-name>
+\layout Section
+
+<module name>
+\layout Subsection*
+
+Name:
+\layout Standard
+
+<module/function name>, in file <filename.c>
+\layout Subsection*
+
+Interface:
+\layout Standard
+
+The following table describes the API for this routine:
+\layout Standard
+\added_space_top 0.375cm \added_space_bottom 0.375cm \align center \LyXTable
+multicol5
+7 4 0 0 -1 -1 -1 -1
+1 1 0 0
+1 0 0 0
+1 0 0 0
+1 0 0 0
+1 0 0 0
+1 0 0 0
+1 1 0 0
+2 1 0 "50mm" ""
+2 1 0 "" ""
+2 1 0 "" ""
+2 1 1 "52mm" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+1 2 1 1 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+0 2 1 0 0 0 0 "" ""
+
+parameter
+\newline 
+type
+\newline 
+in/out
+\newline 
+description
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+
+\newline 
+<return value>
+\newline 
+int
+\newline 
+out
+\newline 
+0 = success, -1 = error
+\layout Subsection*
+
+Functionality:
+\layout Standard
+
+<describe the operation/functionality of this function>
+\layout Subsection*
+
+Pseudo-code:
+\layout Standard
+
+<optional: include pseudo-code or flowchart here if above section doesn't
+ adequately describe operatiuon>
+\layout Subsection*
+
+Dependancies/Resources used:
+\layout Standard
+
+<describe memory and any other system resources used>
+\layout Standard
+
+In addition, the following header files are required:
+\layout Itemize
+
+<list of header files>
+\layout Subsection*
+
+Subordinates:
+\layout Standard
+
+<functions called from this one>
+\layout Subsection*
+
+Library:
+\layout Standard
+
+This routine is contained in <library-name>
+\layout Bibliography
+\bibitem {horrell:99}
+
+J.M.
+ Horrell, 
+\begin_inset Quotes eld
+\end_inset 
+
+Range-Doppler Synthetic Aperture Radar Processing at VHF Frequencies
+\begin_inset Quotes erd
+\end_inset 
+
+, Ph.D.
+ Thesis, University of Cape Town, May 1999.
+\layout Standard
+
+
+\begin_inset LatexCommand \label{lastpg}
+
+\end_inset 
+
+
+\begin_inset Info This lastpg label has to appear at the end of the document,
+so that the page counter works correctly.
+\end_inset 
+
+
+\the_end

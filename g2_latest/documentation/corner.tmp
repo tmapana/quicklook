@@ -1,0 +1,33 @@
+Command file for Corner (Corner turn program)
+$ProgramVersion (jmh) => 1999-01-26
+---------------------------------------------
+
+$InputFileName               => tmpg2.rnc
+$OutputFileName              => tmpg2.cor
+$MaxInputCols [see note]     => 2048
+$BytesPerValue [see note]    => 2
+$RowHeaderBytesToSkip        => 0
+$RowFooterBytesToSkip        => 0
+$InputStartRow               => 0
+$InputEndRow                 => 1001
+$InputStartCol               => 0
+$InputEndCol                 => 2048
+$MaxMem [in MB - see note]   => 100.0
+
+Notes:
+------
+
+Assumes the input file is written row by row. The byte length of a row
+in the input file is : (BytesPerValue*MaxInputCols) +
+                       RowHeaderBytesToSkip + RowFooterBytesToSkip.
+
+MaxInputCols  : Excludes header and footer bytes.
+
+BytesPerValue : For complex data, this is the byte size of the full
+                complex number (I or Q together) and must thus be
+                even and at least 2.
+
+MaxMem : the maximum memory usage for the corner turn in MBytes. To
+         reduce mem usage, the input array may be processed in blocks
+         of input columns. The program respects the start and end rows
+         and columns regardless of the internal block size used.
