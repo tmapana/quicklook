@@ -342,7 +342,7 @@ def range_doppler(data, root_directory, time_stamp, switch_mode, n_seconds, pres
   '''
 
   # Set FFT length
-  n_FFT_Doppler = 64
+  n_FFT_Doppler = 2048
 
   #TODO: compute the appropriate axes to display range against Doppler frequency
   x_axis = np.fft.fftfreq(n=n_FFT_Doppler, d=1/sampling_rate)/1e9 # frequecy axis scaled
@@ -427,7 +427,7 @@ def plot_rd_map(title, data, x_axis, y_axis, switch_mode, channel, root_director
 
   data_dB = 20*np.log10(np.abs(data))
   data_max = np.amax(data_dB)
-  data_min = data_max - 30
+  data_min = data_max - 20
   data_dB = np.clip(data_dB, data_min, data_max)
     
   plt.imshow(X=data_dB, aspect='auto', origin='lower', extent=[min(x_axis), max(x_axis), min(y_axis), max(y_axis)])
@@ -435,7 +435,7 @@ def plot_rd_map(title, data, x_axis, y_axis, switch_mode, channel, root_director
   plt.tight_layout()
     
   file_name = time_stamp + "_" + title + "_" + str(switch_mode) + channel + ".png"
-  plt.savefig(os.path.join(root_directory, 'quicklook/'+file_name))
+  plt.savefig(os.path.join(root_directory, 'quicklook/'+file_name), dpi=300)
   
   print(time_stamp + " " + title.upper() + " " + str(switch_mode) + channel + " saved.")
 
@@ -526,7 +526,7 @@ def plot_rti(title, data, x_axis, y_axis, switch_mode, channel, root_directory, 
   plt.imshow(data_dB, interpolation='none', cmap='viridis', aspect='auto', origin='lower', extent=[min(x_axis), max(x_axis), min(y_axis), max(y_axis)])
     
   file_name = time_stamp + "_" + title + "_" + str(switch_mode) + channel + ".png"
-  plt.savefig(os.path.join(root_directory, 'quicklook/'+file_name))
+  plt.savefig(os.path.join(root_directory, 'quicklook/'+file_name), dpi=300)
   
   print(time_stamp + " " + title.upper() + " " + str(switch_mode) + channel + " saved.")
 
@@ -817,7 +817,7 @@ def G2(data, n_az_points, title, root_directory, time_stamp, prf, n_range_bins):
     f_id.write('$InputStartSampleDelay        => ' + str(0) + '\n')
     f_id.write('$CarrierFreq [Hz]             => ' + str(2437498854.473165) + '\n')
     f_id.write('$InputPRF [Hz]                => ' + str(prf) + '\n')
-    f_id.write('$NomGroundSpeed [m/s]         => ' + str(32) + '\n')
+    f_id.write('$NomGroundSpeed [m/s]         => ' + str(30) + '\n')
     f_id.write('$InputFileAzPts               => ' + str(n_az_points) + '\n')
     f_id.write('$StartProcessAzPt             => ' + str(0) + '\n') #change
     f_id.write('$AzPtsToProcess               => ' + str(n_az_points) + '\n')
@@ -838,8 +838,8 @@ def G2(data, n_az_points, title, root_directory, time_stamp, prf, n_range_bins):
     f_id.write('$NumLooks                     => ' + str(1) + '\n')
     f_id.write('$LookOverlapFrac [0.0-1.0]    => ' + str(0.0) + '\n')
     f_id.write('$WinConstFreq [0.0-1.0]       => ' + str(0.08) + '\n')
-    f_id.write('$RngCurvInterpSize            => ' + str(4) + '\n')
-    f_id.write('$RngCurvBatchSize             => ' + str(16) + '\n') #play with this
+    f_id.write('$RngCurvInterpSize            => ' + str(16) + '\n')
+    f_id.write('$RngCurvBatchSize             => ' + str(64) + '\n') #play with this
     f_id.write('$PostSumRatio                 => ' + str(1) + '\n')
     f_id.write('$DetectMethod                 => ' + str(0) + '\n')
     f_id.write('$InputDataType                => ' + str(3) + '\n')
