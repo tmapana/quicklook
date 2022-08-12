@@ -15,6 +15,7 @@ import sys
 import math
 import glob
 import json
+import tempfile
 from matplotlib.colors import LogNorm
 import numpy as np
 import configparser
@@ -247,6 +248,13 @@ def load_data(root_directory, time_stamp, switch_mode, n_seconds, presummed_prf,
   return data
 
 
+def load_motion_data():
+  # TODO: load all motion data:
+  #       velocity
+  #       height, etc.
+  return 0
+
+
 def window(data, switch_mode, n_pri):
     '''
     Attempt at windowing the data to remove high sidelobes
@@ -429,7 +437,7 @@ def plot_rd_map(title, data, x_axis, y_axis, switch_mode, channel, root_director
 
   data_dB = 20*np.log10(np.abs(data))
   data_max = np.amax(data_dB)
-  data_min = data_max - 20
+  data_min = data_max - 15
   data_dB = np.clip(data_dB, data_min, data_max)
     
   plt.imshow(X=data_dB, aspect='auto', origin='lower', extent=[min(x_axis), max(x_axis), min(y_axis), max(y_axis)])
@@ -587,6 +595,7 @@ def haversine(lon_A, lat_A, lon_B, lat_B):
   if dlat < 0:
     distance = 1*R*c*1000
 
+  distance = 0  # debug statement
   return distance # in metres
 
 
@@ -717,17 +726,33 @@ def motion_compensation(data, x_axis, y_axis, switch_mode, root_directory, n_sec
     n_polarizations = 4
     temp = np.zeros((n_pri, n_az_points, n_polarizations)).astype('complex64')
 
-  for i in range(0, n_polarizations):
-      for j in range(0, n_pri):
-        for k in range(0, n_az_points):
-          new_rbin = k + int(range_dev_bins[j])
+  # pad the range axis with zeros
+  rbin_start = abs(np.min(range_dev_bins))  # zeroth range bin
+  rbin_resize = rbin_start + np.max(range_dev_bins)
+  temp = np.resize(temp, (n_pri, int(n_az_points+rbin_resize), n_polarizations))
+
+  for pol in range(0, n_polarizations):
+      for pri in range(0, n_pri):
+        for rbin in range(0, n_az_points):
+          new_rbin = rbin + int(range_dev_bins[pri])
+          new_rbin = int(new_rbin)
 
           # shift range bin from j to new_rbin
           if (new_rbin >= 0 and new_rbin < n_az_points):
-            temp[j,k,i] = data_out[j,new_rbin,i]
+            temp[pri,new_rbin,pol] = data_out[pri,rbin,pol]
+          else:
+            # need to pad the range axis with zeros and resize the dataset
+            #if new_rbin < 0:
+              #temp = temp.resize((n_pri, n_az_points-new_rbin, n_polarizations))
+              
+              #temp[j,k,i] = data_out[j,new_rbin,i]
+            if new_rbin >= n_az_points:
+
+              temp[pri,new_rbin,pol] = data_out[pri,rbin,pol]
 
   data_out = temp
   
+  print("Motion errors corrected on dataset")
   return data_out
 
 
@@ -790,7 +815,7 @@ def SAR(data, root_directory, switch_mode, time_stamp, prf, n_az_points, n_range
   plt.imshow(image, cmap='gray', aspect='equal', origin='upper', vmin=None, vmax=None)
   file_name = time_stamp + '.sar.noco'
   image_path = os.path.join(root_directory, 'quicklook/'+file_name)
-  plt.imsave(image_path, image, cmap='gray', origin='upper', format='png')
+  plt.imsave(image_path, image, cmap='gray', origin='upper', format='png', dpi=300)
 
   sar_image = Image.open(image_path)
   sar_image.load()
