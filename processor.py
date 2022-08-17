@@ -30,11 +30,9 @@ from string import *
 from PIL import Image
 
 import g2tools
-#from g2main import *
-#from g2tools import *
 
-#TODO: Motion compensation
-#TODO: Basic SAR processor
+# TODO: Motion compensation
+# TODO: Basic SAR processor
 
 def main():
   '''
@@ -69,9 +67,8 @@ def main():
     data = load_data(root_directory=root_directory, time_stamp=time_stamp, switch_mode=switch_mode, \
                     n_seconds=n_seconds, presummed_prf=presummed_prf, n_pri=n_pri)
 
-    # motion compensation
-    x_axis = np.linspace(0, n_seconds, n_pri, endpoint=False)  # time axis
-    y_axis = np.linspace(0, max_range, (int)(n_seconds*presummed_prf), endpoint=False)  # range axis
+    # perform range compression on data TODO
+    data = fast_time_fft(data=data)
 
     # OPTIONS
     if len(sys.argv) > 2:
@@ -88,13 +85,21 @@ def main():
         elif sys.argv[opt] == 'rti':
           # produce range-time plot and save to diectory
           rti(data, root_directory, time_stamp, switch_mode, \
-              n_seconds, n_pri, presummed_prf, max_range, all=False)
+              n_seconds, n_pri, presummed_prf, max_range, title='rti', all=False)
+
+        elif sys.argv[opt] == 'rtp':
+          # produce range-time plot and save to diectory
+          rti(data, root_directory, time_stamp, switch_mode, \
+              n_seconds, n_pri, presummed_prf, max_range, title='rtp', all=False)
     
         elif sys.argv[opt] == 'hist':
           # produce a histogram of the raw data
           plot_histogram(data, root_directory=root_directory)
 
         elif sys.argv[opt] == 'mocomp':
+          # motion compensation axes
+          x_axis = np.linspace(0, n_seconds, n_pri, endpoint=False)  # time axis
+          y_axis = np.linspace(0, max_range, (int)(n_seconds*presummed_prf), endpoint=False)  # range axis
           # perform motion compensation
           data = motion_compensation(data=data, x_axis=x_axis, y_axis=y_axis, switch_mode=switch_mode, \
                                       root_directory=root_directory, n_seconds=n_seconds, n_pri=n_pri, \
@@ -102,7 +107,7 @@ def main():
         
         elif sys.argv[opt] == 'sar':
           # run SAR processor
-          data = fast_time_fft(data=data)          
+          # data = fast_time_fft(data=data)
           SAR(data=data, root_directory=root_directory, switch_mode=switch_mode, \
               time_stamp=time_stamp, prf=presummed_prf, n_az_points=n_az_points, \
               n_range_bins=n_range_bins, max_range=max_range, n_seconds=n_seconds, \
@@ -450,7 +455,7 @@ def plot_rd_map(title, data, x_axis, y_axis, switch_mode, channel, root_director
   print(time_stamp + " " + title.upper() + " " + str(switch_mode) + channel + " saved.")
 
 
-def rti(data, root_directory, time_stamp, switch_mode, n_seconds, n_pri, presummed_prf, max_range, all=False):
+def rti(data, root_directory, time_stamp, switch_mode, n_seconds, n_pri, presummed_prf, max_range, title, all=False):
   '''
   Produces and saves a range time intensity plot of the data
   Compute a 2D Fast Fourier Transform to convert fast-time axis to range and slow-time axis to time
@@ -468,12 +473,12 @@ def rti(data, root_directory, time_stamp, switch_mode, n_seconds, n_pri, presumm
     channel_1b = data[:,:,1]
 
     channel_1a_fft = fast_time_fft(data=channel_1a)
-    plot_rti(title='rti', data=channel_1a_fft, x_axis=x_axis, y_axis=y_axis, switch_mode=switch_mode, \
+    plot_rti(title=title, data=channel_1a_fft, x_axis=x_axis, y_axis=y_axis, switch_mode=switch_mode, \
               channel='a', root_directory=root_directory, time_stamp=time_stamp)
 
     if all:
       channel_1b_fft = fast_time_fft(data=channel_1b)
-      plot_rti(title='rti', data=channel_1b_fft, x_axis=x_axis, y_axis=y_axis, switch_mode=switch_mode, \
+      plot_rti(title=title, data=channel_1b_fft, x_axis=x_axis, y_axis=y_axis, switch_mode=switch_mode, \
               channel='b', root_directory=root_directory, time_stamp=time_stamp)
   
   elif switch_mode == 2:
@@ -482,14 +487,14 @@ def rti(data, root_directory, time_stamp, switch_mode, n_seconds, n_pri, presumm
     channel_2b = data[:,:,1]
 
     # FFT in the fast-time axis
-    channel_2a_fft = fast_time_fft(data=channel_2a)
-    plot_rti(title='rti', data=channel_2a_fft, x_axis=x_axis, y_axis=y_axis, switch_mode=switch_mode, \
+    # channel_2a_fft = fast_time_fft(data=channel_2a)
+    plot_rti(title=title, data=channel_2a, x_axis=x_axis, y_axis=y_axis, switch_mode=switch_mode, \
               channel='a', root_directory=root_directory, time_stamp=time_stamp)
 
     if all:
       # FFT in the fast-time axis
-      channel_2b_fft = fast_time_fft(data=channel_2b)
-      plot_rti(title='rti', data=channel_2b_fft, x_axis=x_axis, y_axis=y_axis, switch_mode=switch_mode, \
+      # channel_2b_fft = fast_time_fft(data=channel_2b)
+      plot_rti(title=title, data=channel_2b, x_axis=x_axis, y_axis=y_axis, switch_mode=switch_mode, \
               channel='b', root_directory=root_directory, time_stamp=time_stamp)
 
   elif switch_mode == 3:
@@ -499,7 +504,7 @@ def rti(data, root_directory, time_stamp, switch_mode, n_seconds, n_pri, presumm
     channel_2b = data[:,:,3]
     
     channel_1a_fft = fast_time_fft(data=channel_1a)
-    plot_rti(title='rti', data=channel_1a_fft, x_axis=x_axis, y_axis=y_axis, switch_mode=1, \
+    plot_rti(title=title, data=channel_1a_fft, x_axis=x_axis, y_axis=y_axis, switch_mode=1, \
               channel='a', root_directory=root_directory, time_stamp=time_stamp)
     
     if all:
@@ -507,13 +512,13 @@ def rti(data, root_directory, time_stamp, switch_mode, n_seconds, n_pri, presumm
       channel_2a_fft = fast_time_fft(data=channel_2a)
       channel_2b_fft = fast_time_fft(data=channel_2b)
       
-      plot_rti(title='rti', data=channel_1b_fft, x_axis=x_axis, y_axis=y_axis, switch_mode=1, \
+      plot_rti(title=title, data=channel_1b_fft, x_axis=x_axis, y_axis=y_axis, switch_mode=1, \
               channel='b', root_directory=root_directory, time_stamp=time_stamp)
           
-      plot_rti(title='rti', data=channel_2a_fft, x_axis=x_axis, y_axis=y_axis, switch_mode=2, \
+      plot_rti(title=title, data=channel_2a_fft, x_axis=x_axis, y_axis=y_axis, switch_mode=2, \
               channel='a', root_directory=root_directory, time_stamp=time_stamp)
       
-      plot_rti(title='rti', data=channel_2b_fft, x_axis=x_axis, y_axis=y_axis, switch_mode=2, \
+      plot_rti(title=title, data=channel_2b_fft, x_axis=x_axis, y_axis=y_axis, switch_mode=2, \
               channel='b', root_directory=root_directory, time_stamp=time_stamp)
 
 
@@ -521,7 +526,6 @@ def plot_rti(title, data, x_axis, y_axis, switch_mode, channel, root_directory, 
   '''
   Plot and save Range-Time Intensity to file
   '''
-
   plt.subplots(nrows=1,ncols=1)
   plt.title(title.upper() + " " + str(switch_mode) + channel)
   plt.xlabel("Slow Time [s]")
@@ -533,8 +537,22 @@ def plot_rti(title, data, x_axis, y_axis, switch_mode, channel, root_directory, 
 
   data_dB = np.clip(data_dB, data_min, data_max)
   
-  plt.imshow(data_dB, interpolation='none', cmap='viridis', aspect='auto', origin='lower', extent=[min(x_axis), max(x_axis), min(y_axis), max(y_axis)])
-    
+  if title == 'rti':
+    plt.imshow(
+      data_dB, 
+      interpolation='none', 
+      cmap='viridis', 
+      aspect='auto', 
+      origin='lower', 
+      extent=[min(x_axis), max(x_axis), min(y_axis), max(y_axis)])
+  
+  elif title == 'rtp':
+    plt.imshow(
+      np.angle(data),
+      aspect='auto', 
+      origin='lower', 
+      extent=[min(x_axis), max(x_axis), min(y_axis), max(y_axis)])
+      
   file_name = time_stamp + "_" + title + "_" + str(switch_mode) + channel + ".png"
   plt.savefig(os.path.join(root_directory, 'quicklook/'+file_name), dpi=300)
   
@@ -595,7 +613,7 @@ def haversine(lon_A, lat_A, lon_B, lat_B):
   if dlat < 0:
     distance = 1*R*c*1000
 
-  distance = 0  # debug statement
+  # distance = 0  # debug statement
   return distance # in metres
 
 
@@ -610,6 +628,9 @@ def motion_compensation(data, x_axis, y_axis, switch_mode, root_directory, n_sec
     - expected aperture, e
     - offset normal, n
   '''
+  # apply range compression to data
+  data = fast_time_fft(data=data) # has shape [n_fft, n_az, n_pol]
+
   motion_filename = glob.glob(os.path.join(root_directory, '*.json'))[0]
   
   # read motion file contents
@@ -663,13 +684,20 @@ def motion_compensation(data, x_axis, y_axis, switch_mode, root_directory, n_sec
   for t in timestamp:
     t_interpolate = np.append(t_interpolate, (t-timestamp[0])/1e3)  # given 10Hz refresh rate, t has 0.1s increments
 
-  range_dev = interpolate.interp1d(t_interpolate, range_deviation, kind='linear')
-  range_deviation_correction = range_dev(x_axis)
+  n_FFT = data.shape[0]
+  n_pol = data.shape[2]
+  az_axis = np.linspace(0, n_seconds, n_FFT, endpoint=False)
+  range_deviation = interpolate.interp1d(t_interpolate, range_deviation, kind='linear')
+  range_deviation = range_deviation(az_axis)
+
+  # generate rande deviation map
+  range_deviation = np.transpose(np.tile(range_deviation, (n_az_points, 1)))
   
   # apply phase correction
-  phase_shift = np.exp(np.multiply(-1j*(4*np.pi)/2437498854.473165, range_deviation_correction))
-  phase_shift = np.array([phase_shift,])
-  phase_shift = np.transpose(phase_shift)
+  # TODO: extract system hardware properties correctly
+  phase_shift = np.exp(np.multiply(-1j*(4*np.pi)/2437498854.473165, range_deviation))
+  # phase_shift = np.array([phase_shift])
+  phase_shift = np.repeat(phase_shift[:, :, np.newaxis], n_pol, axis=2)
 
   data_out = np.array([])
 
@@ -686,10 +714,11 @@ def motion_compensation(data, x_axis, y_axis, switch_mode, root_directory, n_sec
     channel_2a = data[:,:,0]
     channel_2b = data[:,:,1]
     
-    temp_2a = np.multiply(channel_2a, phase_shift)
-    temp_2b = np.multiply(channel_2b, phase_shift)
+    # temp_2a = np.multiply(channel_2a, phase_shift)
+    # temp_2b = np.multiply(channel_2b, phase_shift)
 
-    data_out = np.dstack((temp_2a, temp_2b))
+    # data_out = np.dstack((temp_2a, temp_2b))
+    data_out = np.multiply(data, phase_shift)
         
   elif switch_mode == 3:
     channel_1a = data[:,:,0]
@@ -706,14 +735,14 @@ def motion_compensation(data, x_axis, y_axis, switch_mode, root_directory, n_sec
                           temp_1b,    # 1b
                           temp_2a,    # 2a
                           temp_2b))   # 2b
-  
+  '''
   # apply range bin correction
   #   find max r_fft
   #   determine range bin size = r_fft/ns_fft
   rbin_size = int(y_axis[-1])/n_az_points
   
   # how many range bins is the range deviation at each pri?
-  range_dev_bins = np.floor(range_deviation_correction/rbin_size)
+  range_dev_bins = np.floor(range_deviation/rbin_size)
 
   # new_rbin = rbin + np.ceil(delta_rbin)
   temp = np.array([])
@@ -751,7 +780,7 @@ def motion_compensation(data, x_axis, y_axis, switch_mode, root_directory, n_sec
               temp[pri,new_rbin,pol] = data_out[pri,rbin,pol]
 
   data_out = temp
-  
+  '''
   print("Motion errors corrected on dataset")
   return data_out
 
