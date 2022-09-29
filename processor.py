@@ -33,6 +33,7 @@ import g2tools
 
 # TODO: Motion compensation
 # TODO: Basic SAR processor
+# TODO: Feed-through filter
 
 def main():
   '''
@@ -108,6 +109,7 @@ def main():
         elif sys.argv[opt] == 'sar':
           # run SAR processor
           # data = fast_time_fft(data=data)
+          print(data.shape)
           SAR(data=data, root_directory=root_directory, switch_mode=switch_mode, \
               time_stamp=time_stamp, prf=presummed_prf, n_az_points=n_az_points, \
               n_range_bins=n_range_bins, max_range=max_range, n_seconds=n_seconds, \
@@ -531,13 +533,13 @@ def plot_rti(title, data, x_axis, y_axis, switch_mode, channel, root_directory, 
   plt.xlabel("Slow Time [s]")
   plt.ylabel("Range [m]")
   
-  data_dB = 20*np.log10(abs(data))
-  data_max = np.amax(data_dB)
-  data_min = np.nanmin(np.mean(data_dB, axis=1))
-
-  data_dB = np.clip(data_dB, data_min, data_max)
-  
   if title == 'rti':
+    data_dB = 20*np.log10(abs(data))
+    data_max = np.amax(data_dB)
+    data_min = np.nanmin(np.mean(data_dB, axis=1))
+
+    data_dB = np.clip(data_dB, data_min, data_max)
+
     plt.imshow(
       data_dB, 
       interpolation='none', 
@@ -547,10 +549,16 @@ def plot_rti(title, data, x_axis, y_axis, switch_mode, channel, root_directory, 
       extent=[min(x_axis), max(x_axis), min(y_axis), max(y_axis)])
   
   elif title == 'rtp':
+    data_max = np.pi
+    data_min = -np.pi
+
     plt.imshow(
       np.angle(data),
+      interpolation='none',
       aspect='auto', 
       origin='lower', 
+      vmax=data_max,
+      vmin=data_min,
       extent=[min(x_axis), max(x_axis), min(y_axis), max(y_axis)])
       
   file_name = time_stamp + "_" + title + "_" + str(switch_mode) + channel + ".png"

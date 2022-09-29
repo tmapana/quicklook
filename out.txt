@@ -1,6 +1,0 @@
-
------------
-Prog: AZCOM (Ver. 1.1)
-Code: J.M. Horrell (Copyright UCT 1994-1999)
-
-ERROR - Input file size of 307200000 bytes is too small (513300000 required)!
