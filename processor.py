@@ -6,6 +6,8 @@ Author:   Tlotliso Mapana
 Date:     28 September 2021
 """
 
+# TODO: Motion compensation + clean up G2
+
 from cProfile import label
 from cmath import log10, phase
 from logging import root
@@ -30,11 +32,13 @@ from string import *
 from PIL import Image
 
 import g2tools
+from parameters import *
 
 # TODO: Motion compensation
 # TODO: Basic SAR processor
 # TODO: Feed-through filter
 
+#-----------------------------------------------------------------------------------------------------#
 def main():
   '''
   This is the entry point of the processor
@@ -60,23 +64,24 @@ def main():
       os.mkdir(os.path.join(root_directory, 'quicklook'))
 
     # Extract configuration parameters from setup.ini and summary.ini files
-    time_stamp, switch_mode, n_seconds, presummed_prf, n_pri, min_range, max_range, \
-          n_range_bins, sampling_rate, n_az_points \
-          = load_configuration_parameters(root_directory=root_directory)
+    time_stamp, switch_mode, n_seconds, prf, decimation_factor, presummed_prf, ns_pri, \
+        min_range, max_range, n_range_bins, sampling_rate, n_az_points, g2_adc, n_range_bins, \
+          n_chunks, range_resolution, ns_fft \
+          = load_radar_parameters(root_directory=root_directory)
 
     # load data from file and pack into a data matrix
     data = load_data(root_directory=root_directory, time_stamp=time_stamp, switch_mode=switch_mode, \
-                    n_seconds=n_seconds, presummed_prf=presummed_prf, n_pri=n_pri)
+                    n_seconds=n_seconds, presummed_prf=presummed_prf, ns_pri=ns_pri)
 
     # perform range compression on data TODO
-    data = fast_time_fft(data=data)
+    data = fast_time_fft(data=data, ns_fft=ns_fft)
 
     # OPTIONS
     if len(sys.argv) > 2:
       for opt in range(2, len(sys.argv)):
         if sys.argv[opt] == 'raw':
           # save binary image to file
-          save_raw(data, root_directory, switch_mode, n_range_bins, n_seconds, time_stamp)
+          save_raw(data, root_directory, switch_mode, n_range_bins, n_seconds, time_stamp, ns_fft)
 
         elif sys.argv[opt] == 'rd':
           # produce a range-Doppler plot and save to directory
@@ -86,12 +91,12 @@ def main():
         elif sys.argv[opt] == 'rti':
           # produce range-time plot and save to diectory
           rti(data, root_directory, time_stamp, switch_mode, \
-              n_seconds, n_pri, presummed_prf, max_range, title='rti', all=False)
+              n_seconds, ns_pri, presummed_prf, max_range, title='rti', all=False)
 
         elif sys.argv[opt] == 'rtp':
           # produce range-time plot and save to diectory
           rti(data, root_directory, time_stamp, switch_mode, \
-              n_seconds, n_pri, presummed_prf, max_range, title='rtp', all=False)
+              n_seconds, ns_pri, presummed_prf, max_range, title='rtp', all=False)
     
         elif sys.argv[opt] == 'hist':
           # produce a histogram of the raw data
@@ -99,16 +104,15 @@ def main():
 
         elif sys.argv[opt] == 'mocomp':
           # motion compensation axes
-          x_axis = np.linspace(0, n_seconds, n_pri, endpoint=False)  # time axis
+          x_axis = np.linspace(0, n_seconds, ns_pri, endpoint=False)  # time axis
           y_axis = np.linspace(0, max_range, (int)(n_seconds*presummed_prf), endpoint=False)  # range axis
           # perform motion compensation
           data = motion_compensation(data=data, x_axis=x_axis, y_axis=y_axis, switch_mode=switch_mode, \
-                                      root_directory=root_directory, n_seconds=n_seconds, n_pri=n_pri, \
+                                      root_directory=root_directory, n_seconds=n_seconds, ns_pri=ns_pri, \
                                       n_az_points=n_az_points, plot_path=True)
         
         elif sys.argv[opt] == 'sar':
           # run SAR processor
-          # data = fast_time_fft(data=data)
           print(data.shape)
           SAR(data=data, root_directory=root_directory, switch_mode=switch_mode, \
               time_stamp=time_stamp, prf=presummed_prf, n_az_points=n_az_points, \
@@ -136,59 +140,8 @@ def main():
     print("Directory", root_directory, "does not exist!")
     exit(-1)
 
-
-def load_configuration_parameters(root_directory):
-  '''
-  Important information about the data is stored in the configuration file of each data directory
-  This function reads in the config file and extracts the following experiment parameters:
-    1. switch_mode = integer indicating which channel(s) was used during operation
-    2. n_seconds = length of data take in seconds
-    3. prf = pulse repetition frequency
-    4. sampling_rate = sampling rate of ADC
-    5. n_pris = factor applied to the prf when writing data to physical disk
-    6. start_index = position to start recording data
-    7. end_index = position to end recording
-  '''
-  summary = configparser.ConfigParser()
-  summary.read(os.path.join(root_directory, "summary.ini"))
-
-  time_stamp = summary['general']['time_stamp']
-  switch_mode = int(summary['dataset']['switch_mode'])
-  n_seconds = int(summary['dataset']['n_seconds'])
-  prf = int(summary['dataset']['prf'])
-  sampling_rate = float(summary['dataset']['sampling_rate'])
-  presumming_factor = int(summary['integration']['n_pris'])   # TODO: define clearly what this is
-  start_index = int(summary['integration']['start_index'])
-  end_index = int(summary['integration']['end_index'])
-  
-  setup = configparser.ConfigParser()
-  setup.read(os.path.join(root_directory, "setup.ini"))
-
-  min_range_string = setup['geometry']['min_range']  # 100.0; [m]
-  min_range = int(min_range_string.split('.')[0])
-  max_range_string = setup['geometry']['max_range']  # 900.0; [m]
-  max_range = int(max_range_string.split('.')[0])
-
-  n_range_bins = max_range - min_range
-
-  # realisable prf of data file stored in memory as data rate is halved when writing to memory
-  presummed_prf = prf/presumming_factor # TODO rename to more understandable term
-  #if switch_mode == 3:
-    #presummed_prf = presummed_prf/2
-
-  n_az_points = int(n_seconds*presummed_prf)
-  if switch_mode == 3:
-    n_az_points = int(n_seconds*presummed_prf//2)
-
-  # number of range bins recorded for each pri
-  n_pri = end_index - start_index + 1
-  
-  print("Configuration parameters loaded.")
-
-  return time_stamp, switch_mode, n_seconds, presummed_prf, n_pri, min_range, max_range, n_range_bins, sampling_rate, n_az_points
-
-
-def load_data(root_directory, time_stamp, switch_mode, n_seconds, presummed_prf, n_pri):
+#-----------------------------------------------------------------------------------------------------#
+def load_data(root_directory, time_stamp, switch_mode, n_seconds, presummed_prf, ns_pri):
   '''
   This function reads in raw miloSAR data stored in a .bin file in the given directory
   '''
@@ -209,7 +162,7 @@ def load_data(root_directory, time_stamp, switch_mode, n_seconds, presummed_prf,
 
   # calculate the number of samples recorded per channel
   n_az_points = int(n_seconds*presummed_prf)
-  n_samples_per_channel = int(n_az_points*n_pri)
+  n_samples_per_channel = int(n_az_points*ns_pri)
 
   '''
   The actual file stored in memory has more bytes than what is calculated
@@ -223,9 +176,9 @@ def load_data(root_directory, time_stamp, switch_mode, n_seconds, presummed_prf,
 
   # reshape array into a 2D matrix for each channel in order to perform fft
   channel_a_data = np.transpose(channel_a_data.reshape(
-    n_az_points, n_pri))
+    n_az_points, ns_pri))
   channel_b_data = np.transpose(channel_b_data.reshape(
-    n_az_points, n_pri))
+    n_az_points, ns_pri))
   
   # Pack data into a matrix
   data = np.array([])
@@ -240,34 +193,109 @@ def load_data(root_directory, time_stamp, switch_mode, n_seconds, presummed_prf,
                     channel_a_data[:, 1::2],    # 2a
                     channel_b_data[:, 1::2]))   # 2b
 
-  #TODO: Constants
-  rp_adc_vpp = 2 # 2V peak-to-peak on this model red pitaya
-  rp_adc_bits = 14 # for this model
-  adc_bits_volts = 2*rp_adc_vpp/math.pow(2, rp_adc_bits)
-
   # scale data
-  data = data*adc_bits_volts
+  data = data*ADC_BITS_VOLTS
 
   # apply windowing function to data
-  data = window(data=data, switch_mode=switch_mode, n_pri=n_pri)
+  data = window(data=data, switch_mode=switch_mode, ns_pri=ns_pri)
     
   print("Dataset", time_stamp, "loaded successfully.")
   return data
 
+#-----------------------------------------------------------------------------------------------------#
+def load_radar_parameters(root_directory):
+    '''
+    Important information about the data is stored in the configuration file of each data directory
+    This function reads in the config file and extracts the following experiment parameters:
+    1. switch_mode = integer indicating which channel(s) was used during operation
+    2. n_seconds = length of data take in seconds
+    3. prf = pulse repetition frequency
+    4. sampling_rate = sampling rate of ADC
+    5. ns_pris = factor applied to the prf when writing data to physical disk
+    6. start_index = position to start recording data
+    7. end_index = position to end recording
+    '''
+    summary = configparser.ConfigParser()
+    summary.read(os.path.join(root_directory, "summary.ini"))
 
-def load_motion_data():
-  # TODO: load all motion data:
-  #       velocity
-  #       height, etc.
-  return 0
+    time_stamp = summary['general']['time_stamp']
+    switch_mode = int(summary['dataset']['switch_mode'])
+    n_seconds = int(summary['dataset']['n_seconds'])
+    prf = int(summary['dataset']['prf'])
+    decimation_factor = int(summary['dataset']['decimation_factor'])
+    sampling_rate = float(summary['dataset']['sampling_rate'])
+    presumming_factor = int(summary['integration']['n_pris'])   # TODO: define clearly what this is
+    start_index = int(summary['integration']['start_index'])
+    end_index = int(summary['integration']['end_index'])
 
+    setup = configparser.ConfigParser()
+    setup.read(os.path.join(root_directory, "setup.ini"))
 
-def window(data, switch_mode, n_pri):
+    min_range_string = setup['geometry']['min_range']  # 100.0; [m]
+    min_range = int(min_range_string.split('.')[0])
+    max_range_string = setup['geometry']['max_range']  # 900.0; [m]
+    max_range = int(max_range_string.split('.')[0])
+
+    print("Configuration parameters loaded.")   # check point
+
+    # n_range_bins = max_range - min_range
+
+    # realisable prf of data file stored in memory as data rate is halved when writing to memory
+    presummed_prf = prf/presumming_factor # TODO rename to more understandable term
+    #if switch_mode == 3:
+    #presummed_prf = presummed_prf/2
+
+    n_az_points = int(n_seconds*presummed_prf)
+    if switch_mode == 3:
+        n_az_points = int(n_seconds*presummed_prf//2)
+
+    # number of range bins recorded for each pri
+    ns_pri = end_index - start_index + 1
+
+    tx_fn_init = int(summary['tx_synth']['fractional_numerator'])
+    ramp_increment = int(summary['tx_synth']['up_ramp_increment'])
+    ramp_length = int(summary['tx_synth']['up_ramp_length'])
+    ramp_period = ramp_length/RP_CLK
+
+    ramp_start_freq = get_rf_freq(tx_fn_init)
+    ramp_end_freq = get_rf_freq(ramp_increment*ramp_length + tx_fn_init)
+    ramp_bandwidth = ramp_end_freq - ramp_start_freq
+
+    chirp_rate = ramp_bandwidth/ramp_period
+
+    centre_freq = (ramp_start_freq + ramp_end_freq)/2
+    range_scaling = (c/2)/chirp_rate
+    wavelength = c/centre_freq
+
+    ns_fft = next_pow_two(ns_pri)
+
+    sample_rate = RP_CLK / decimation_factor
+    spectral_resolution = sample_rate/ns_pri # 1/T
+    fft_bin_spacing = sample_rate/ns_fft
+    range_bin_spacing = fft_bin_spacing * range_scaling
+    range_resolution = range_scaling * np.hypot(spectral_resolution, fft_bin_spacing)
+    g2_adc = c / (2*range_bin_spacing)
+
+    min_range_bin = int(np.floor(min_range / range_bin_spacing))
+    max_range_bin = int(np.ceil(max_range / range_bin_spacing))
+
+    n_range_bins = max_range_bin - min_range_bin
+
+    min_chunk = 0
+    max_chunk = int(np.ceil(prf*n_seconds))
+    n_chunks = max_chunk - min_chunk
+
+    return time_stamp, switch_mode, n_seconds, prf, decimation_factor, presummed_prf, ns_pri, \
+            min_range, max_range, n_range_bins, sampling_rate, n_az_points, g2_adc, n_range_bins, \
+              n_chunks, range_resolution, ns_fft
+
+#-----------------------------------------------------------------------------------------------------#
+def window(data, switch_mode, ns_pri):
     '''
     Attempt at windowing the data to remove high sidelobes
     Using Hamming window function
     '''
-    window_function = np.hamming(n_pri)
+    window_function = np.hamming(ns_pri)
 
     window_function = np.array([window_function])
 
@@ -308,10 +336,10 @@ def window(data, switch_mode, n_pri):
     return data_out
 
 
-def fast_time_fft(data):
-  n_az_points = data.shape[0]
-  n_FFT = int(math.pow(2, math.ceil(np.log2(n_az_points))))
-  data = np.fft.fftshift(np.fft.fft(data, n_FFT, axis=0), axes=0)
+def fast_time_fft(data, ns_fft):
+  # n_az_points = data.shape[0]
+  # n_FFT = int(math.pow(2, math.ceil(np.log2(n_az_points))))
+  data = np.fft.fftshift(np.fft.fft(data, ns_fft, axis=0), axes=0)
 
   return data
 
@@ -321,7 +349,6 @@ def save_raw(data, root_directory, switch_mode, n_range_bins, n_seconds, time_st
   Not currently saving raw data as intended
   TODO: Rewrite this function to produce correct results
   '''
-  data = fast_time_fft(data)
   image = pow(np.mean(abs(data), axis=2), 2)
   image.astype('complex64').tofile(
     os.path.join(root_directory, 'quicklook/' + time_stamp + '.bin') )
@@ -457,7 +484,7 @@ def plot_rd_map(title, data, x_axis, y_axis, switch_mode, channel, root_director
   print(time_stamp + " " + title.upper() + " " + str(switch_mode) + channel + " saved.")
 
 
-def rti(data, root_directory, time_stamp, switch_mode, n_seconds, n_pri, presummed_prf, max_range, title, all=False):
+def rti(data, root_directory, time_stamp, switch_mode, n_seconds, ns_pri, presummed_prf, max_range, title, all=False):
   '''
   Produces and saves a range time intensity plot of the data
   Compute a 2D Fast Fourier Transform to convert fast-time axis to range and slow-time axis to time
@@ -465,7 +492,7 @@ def rti(data, root_directory, time_stamp, switch_mode, n_seconds, n_pri, presumm
   #TODO: Reduce dynamic range of image in order to see more low intensity clutter returns
 
   # Compute the axes
-  x_axis = np.linspace(0, n_seconds, n_pri, endpoint=False)  # time axis
+  x_axis = np.linspace(0, n_seconds, ns_pri, endpoint=False)  # time axis
   y_axis = np.linspace(0, max_range, (int)(n_seconds*presummed_prf), endpoint=False)  # range axis
 
   # select which channel to plot depending on switch mode
@@ -474,12 +501,12 @@ def rti(data, root_directory, time_stamp, switch_mode, n_seconds, n_pri, presumm
     channel_1a = data[:,:,0]
     channel_1b = data[:,:,1]
 
-    channel_1a_fft = fast_time_fft(data=channel_1a)
+    # channel_1a_fft = fast_time_fft(data=channel_1a, ns_fft=ns_fft)
     plot_rti(title=title, data=channel_1a_fft, x_axis=x_axis, y_axis=y_axis, switch_mode=switch_mode, \
               channel='a', root_directory=root_directory, time_stamp=time_stamp)
 
     if all:
-      channel_1b_fft = fast_time_fft(data=channel_1b)
+      # channel_1b_fft = fast_time_fft(data=channel_1b, ns_fft=ns_fft)
       plot_rti(title=title, data=channel_1b_fft, x_axis=x_axis, y_axis=y_axis, switch_mode=switch_mode, \
               channel='b', root_directory=root_directory, time_stamp=time_stamp)
   
@@ -489,13 +516,13 @@ def rti(data, root_directory, time_stamp, switch_mode, n_seconds, n_pri, presumm
     channel_2b = data[:,:,1]
 
     # FFT in the fast-time axis
-    # channel_2a_fft = fast_time_fft(data=channel_2a)
+    # channel_2a_fft = fast_time_fft(data=channel_2a, ns_fft=ns_fft)
     plot_rti(title=title, data=channel_2a, x_axis=x_axis, y_axis=y_axis, switch_mode=switch_mode, \
               channel='a', root_directory=root_directory, time_stamp=time_stamp)
 
     if all:
       # FFT in the fast-time axis
-      # channel_2b_fft = fast_time_fft(data=channel_2b)
+      # channel_2b_fft = fast_time_fft(data=channel_2b, ns_fft=ns_fft)
       plot_rti(title=title, data=channel_2b, x_axis=x_axis, y_axis=y_axis, switch_mode=switch_mode, \
               channel='b', root_directory=root_directory, time_stamp=time_stamp)
 
@@ -505,14 +532,14 @@ def rti(data, root_directory, time_stamp, switch_mode, n_seconds, n_pri, presumm
     channel_2a = data[:,:,2]
     channel_2b = data[:,:,3]
     
-    channel_1a_fft = fast_time_fft(data=channel_1a)
+    # channel_1a_fft = fast_time_fft(data=channel_1a, ns_fft=ns_fft)
     plot_rti(title=title, data=channel_1a_fft, x_axis=x_axis, y_axis=y_axis, switch_mode=1, \
               channel='a', root_directory=root_directory, time_stamp=time_stamp)
     
     if all:
-      channel_1b_fft = fast_time_fft(data=channel_1b)
-      channel_2a_fft = fast_time_fft(data=channel_2a)
-      channel_2b_fft = fast_time_fft(data=channel_2b)
+      # channel_1b_fft = fast_time_fft(data=channel_1b, ns_fft=ns_fft)
+      # channel_2a_fft = fast_time_fft(data=channel_2a, ns_fft=ns_fft)
+      # channel_2b_fft = fast_time_fft(data=channel_2b, ns_fft=ns_fft)
       
       plot_rti(title=title, data=channel_1b_fft, x_axis=x_axis, y_axis=y_axis, switch_mode=1, \
               channel='b', root_directory=root_directory, time_stamp=time_stamp)
@@ -625,7 +652,7 @@ def haversine(lon_A, lat_A, lon_B, lat_B):
   return distance # in metres
 
 
-def motion_compensation(data, x_axis, y_axis, switch_mode, root_directory, n_seconds, n_pri, n_az_points, plot_path=False):
+def motion_compensation(data, x_axis, y_axis, switch_mode, root_directory, n_seconds, ns_pri, n_az_points, plot_path=False):
   '''
   Read motion data from JSON generated by system
   Extract the following information:
@@ -637,7 +664,7 @@ def motion_compensation(data, x_axis, y_axis, switch_mode, root_directory, n_sec
     - offset normal, n
   '''
   # apply range compression to data
-  data = fast_time_fft(data=data) # has shape [n_fft, n_az, n_pol]
+  # data = fast_time_fft(data=data, ns_fft=ns_fft) # has shape [n_fft, n_az, n_pol]
 
   motion_filename = glob.glob(os.path.join(root_directory, '*.json'))[0]
   
@@ -757,19 +784,19 @@ def motion_compensation(data, x_axis, y_axis, switch_mode, root_directory, n_sec
   n_polarizations = 0 # error case
   if switch_mode==1 or switch_mode==2:
     n_polarizations = 2
-    temp = np.zeros((n_pri, n_az_points, n_polarizations)).astype('complex64')
+    temp = np.zeros((ns_pri, n_az_points, n_polarizations)).astype('complex64')
   
   elif switch_mode==3:
     n_polarizations = 4
-    temp = np.zeros((n_pri, n_az_points, n_polarizations)).astype('complex64')
+    temp = np.zeros((ns_pri, n_az_points, n_polarizations)).astype('complex64')
 
   # pad the range axis with zeros
   rbin_start = abs(np.min(range_dev_bins))  # zeroth range bin
   rbin_resize = rbin_start + np.max(range_dev_bins)
-  temp = np.resize(temp, (n_pri, int(n_az_points+rbin_resize), n_polarizations))
+  temp = np.resize(temp, (ns_pri, int(n_az_points+rbin_resize), n_polarizations))
 
   for pol in range(0, n_polarizations):
-      for pri in range(0, n_pri):
+      for pri in range(0, ns_pri):
         for rbin in range(0, n_az_points):
           new_rbin = rbin + int(range_dev_bins[pri])
           new_rbin = int(new_rbin)
@@ -780,7 +807,7 @@ def motion_compensation(data, x_axis, y_axis, switch_mode, root_directory, n_sec
           else:
             # need to pad the range axis with zeros and resize the dataset
             #if new_rbin < 0:
-              #temp = temp.resize((n_pri, n_az_points-new_rbin, n_polarizations))
+              #temp = temp.resize((ns_pri, n_az_points-new_rbin, n_polarizations))
               
               #temp[j,k,i] = data_out[j,new_rbin,i]
             if new_rbin >= n_az_points:
@@ -892,7 +919,7 @@ def G2(data, n_az_points, title, root_directory, time_stamp, prf, n_range_bins):
     f_id.write('$InputStartSampleDelay        => ' + str(0) + '\n')
     f_id.write('$CarrierFreq [Hz]             => ' + str(2437498854.473165) + '\n')
     f_id.write('$InputPRF [Hz]                => ' + str(prf) + '\n')
-    f_id.write('$NomGroundSpeed [m/s]         => ' + str(30) + '\n')
+    f_id.write('$NomGroundSpeed [m/s]         => ' + str(30) + '\n')  # need to claculate average velocity
     f_id.write('$InputFileAzPts               => ' + str(n_az_points) + '\n')
     f_id.write('$StartProcessAzPt             => ' + str(0) + '\n') #change
     f_id.write('$AzPtsToProcess               => ' + str(n_az_points) + '\n')

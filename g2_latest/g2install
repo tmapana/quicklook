@@ -1,6 +1,0 @@
-#!/bin/bash
-mkdir -p /bin/sar/
-cp g2moc g2rnc g2stepf g2cor g2azc g2sniffdc g2b2tif g2imu_unpack /bin/sar
-cp iq2mag flt2byte swapend pga /bin/sar
-cp g2.py g2tools.py g2tmpl.py Gnuplot.py grnn.py g2unpk_dgps.py /bin/sar
-
