@@ -1,10 +1,8 @@
-import configparser
 import pandas as pd
 import numpy as np
 import os.path
 import math
 import glob
-import json
 import os
 
 # CONSTANTS
@@ -54,7 +52,7 @@ def load_motion_data(root_directory, parameter):
     mean_height = np.mean(
         motion_df['u'].values)  # average height above base unit
     mean_velocity = np.mean(
-        motion_df['abs_vel'].values)
+        motion_df['abs_vel'].values, where=[True])  # average platform velocity
     synthetic_aperture = np.hypot(
         motion_df['e'].values[-1], motion_df['n'].values[-1])
 
@@ -68,8 +66,105 @@ def load_motion_data(root_directory, parameter):
         print('Unknown parameter option, please confirm.')
         exit()
 
+#-----------------------------------------------------------------------------------------------------#
 def get_rf_freq(FN):
     '''
     Returns the RF frequency associated with a given fractional numerator
     '''
     return RP_CLK*(N_COUNTER + FN/FD)/RF_DIV
+
+#-----------------------------------------------------------------------------------------------------#
+def fast_time_fft(data, ns_fft):
+  print("\nPerforming range_compression...")
+  data = np.fft.fftshift(np.fft.fft(data, ns_fft, axis=0), axes=0)
+
+  return data
+
+#-----------------------------------------------------------------------------------------------------#
+def window(data, switch_mode, ns_pri):
+    '''
+    Attempt at windowing the data to remove high sidelobes
+    Using Hamming window function
+    '''
+    window_function = np.hamming(ns_pri)
+
+    window_function = np.array([window_function])
+
+    if switch_mode  == 1:
+      channel_1a = data[:,:,0]
+      channel_1b = data[:,:,1]
+
+      channel_1a = np.multiply(channel_1a, np.transpose(window_function))
+      channel_1b = np.multiply(channel_1b, np.transpose(window_function))
+
+      data_out = np.dstack((channel_1a, channel_1b))
+    
+    if switch_mode  == 2:
+      channel_2a = data[:,:,0]
+      channel_2b = data[:,:,1]
+
+      channel_2a = np.multiply(channel_2a, np.transpose(window_function))
+      channel_2b = np.multiply(channel_2b, np.transpose(window_function))
+
+      data_out = np.dstack((channel_2a, channel_2b))
+          
+    elif switch_mode == 3:
+      channel_1a = data[:,:,0]
+      channel_1b = data[:,:,1]
+      channel_2a = data[:,:,2]
+      channel_2b = data[:,:,3]
+
+      channel_1a = np.multiply(channel_1a, np.transpose(window_function))
+      channel_1b = np.multiply(channel_1b, np.transpose(window_function))
+      channel_2a = np.multiply(channel_2a, np.transpose(window_function))
+      channel_2b = np.multiply(channel_2b, np.transpose(window_function))
+
+      data_out = np.dstack((channel_1a,    # 1a
+                            channel_1b,    # 1b
+                            channel_2a,    # 2a
+                            channel_2b))   # 2b
+
+    return data_out
+
+#-----------------------------------------------------------------------------------------------------#
+def haversine(lon_A, lat_A, lon_B, lat_B):
+  '''
+  This function is going to make use of the Haversine formula to calculate the distance between two points
+  Process is as follows:
+    - convert latitude and longitude to radians
+    - calculate radial distance between lon_A and lon_B
+    - calculate radial distance between lat_A and lat_B
+    - the result of the Haversine formula is calculated by making use of the law of cosine
+  '''
+  lon1 = math.radians(lon_A)
+  lon2 = math.radians(lon_B)
+  lat1 = math.radians(lat_A)
+  lat2 = math.radians(lat_B)
+
+  dlon = lon2 - lon1
+  dlat = lat2 - lat1
+  
+  a = math.pow(math.sin(dlat/2), 2) + \
+    math.cos(lat1)*math.cos(lat2)*math.pow(math.sin(dlon/2), 2)
+  
+  c = math.atan2(math.sqrt(a), math.sqrt(1-a))
+
+  R = 6371  # Earth's approximate radius in kilometres 
+
+  # return distance by which to compensate in meters
+  distance = 0  # default case
+  if dlat > 0:    # provide an error margin
+    distance = -1*R*c*1000
+  if dlat < 0:
+    distance = 1*R*c*1000
+
+  # distance = 0  # debug statement
+  return distance # in metres
+
+#-----------------------------------------------------------------------------------------------------#
+def trimmer(data, min_chunk, max_chunk, min_range_bin, max_range_bin):
+  data = data[min_range_bin:max_range_bin, min_chunk, max_chunk]
+  
+  
+  print('Dataset trimmed.')
+  return data

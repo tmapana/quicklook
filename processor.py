@@ -8,28 +8,17 @@ Date:     28 September 2021
 
 # TODO: Motion compensation + clean up G2
 
-from cProfile import label
-from cmath import log10, phase
-from logging import root
 import os
-from sqlite3 import Timestamp
 import sys
-import math
 import glob
 import json
-import tempfile
-from matplotlib.colors import LogNorm
 import numpy as np
 import configparser
-from numpy.fft import fftfreq
-from numpy.lib.function_base import add_newdoc_ufunc
 import matplotlib.pyplot as plt
-from numpy.linalg import matrix_rank
-import pandas as pd
-from scipy import interpolate
-from scipy import signal
+
 from string import *
 from PIL import Image
+from scipy import interpolate
 
 import g2tools
 from parameters import *
@@ -38,7 +27,7 @@ from parameters import *
 # TODO: Basic SAR processor
 # TODO: Feed-through filter
 
-#-----------------------------------------------------------------------------------------------------#
+#---------------------------------------------------------------------------------------------------------------------------------#
 def main():
   '''
   This is the entry point of the processor
@@ -66,8 +55,8 @@ def main():
     # Extract configuration parameters from setup.ini and summary.ini files
     time_stamp, switch_mode, n_seconds, prf, decimation_factor, presummed_prf, ns_pri, \
         min_range, max_range, n_range_bins, sampling_rate, n_az_points, g2_adc, n_range_bins, \
-          n_chunks, range_resolution, ns_fft \
-          = load_radar_parameters(root_directory=root_directory)
+            range_resolution, ns_fft, centre_freq, wavelength \
+              = load_radar_parameters(root_directory=root_directory)
 
     # load data from file and pack into a data matrix
     data = load_data(root_directory=root_directory, time_stamp=time_stamp, switch_mode=switch_mode, \
@@ -97,10 +86,6 @@ def main():
           # produce range-time plot and save to diectory
           rti(data, root_directory, time_stamp, switch_mode, \
               n_seconds, ns_pri, presummed_prf, max_range, title='rtp', all=False)
-    
-        elif sys.argv[opt] == 'hist':
-          # produce a histogram of the raw data
-          plot_histogram(data, root_directory=root_directory)
 
         elif sys.argv[opt] == 'mocomp':
           # motion compensation axes
@@ -108,16 +93,16 @@ def main():
           y_axis = np.linspace(0, max_range, (int)(n_seconds*presummed_prf), endpoint=False)  # range axis
           # perform motion compensation
           data = motion_compensation(data=data, x_axis=x_axis, y_axis=y_axis, switch_mode=switch_mode, \
-                                      root_directory=root_directory, n_seconds=n_seconds, ns_pri=ns_pri, \
-                                      n_az_points=n_az_points, plot_path=True)
+                                      root_directory=root_directory, n_seconds=n_seconds, n_range_bins=int(ns_fft), \
+                                      n_az_points=n_az_points, wavelength=wavelength, min_range=min_range, \
+                                      max_range=max_range, plot_path=True)
         
         elif sys.argv[opt] == 'sar':
           # run SAR processor
-          print(data.shape)
           SAR(data=data, root_directory=root_directory, switch_mode=switch_mode, \
-              time_stamp=time_stamp, prf=presummed_prf, n_az_points=n_az_points, \
+              time_stamp=time_stamp, prf=presummed_prf, \
               n_range_bins=n_range_bins, max_range=max_range, n_seconds=n_seconds, \
-              d_range=[])
+              g2_adc=g2_adc, range_resolution=range_resolution, n_az_points=n_az_points, centre_freq=centre_freq, d_range=[])
 
         else:
           print("\nUnidentified function selected.")
@@ -140,7 +125,7 @@ def main():
     print("Directory", root_directory, "does not exist!")
     exit(-1)
 
-#-----------------------------------------------------------------------------------------------------#
+#---------------------------------------------------------------------------------------------------------------------------------#
 def load_data(root_directory, time_stamp, switch_mode, n_seconds, presummed_prf, ns_pri):
   '''
   This function reads in raw miloSAR data stored in a .bin file in the given directory
@@ -150,6 +135,8 @@ def load_data(root_directory, time_stamp, switch_mode, n_seconds, presummed_prf,
   with open(file_name, 'rb') as f:
     # read data into an array as signed 16-bit integer values
     data_array = np.fromfile(f, np.int16)
+  
+  print("\nLoading dataset...")
   
   '''
   data_array is an array of interleaved IQ data samples.
@@ -202,7 +189,7 @@ def load_data(root_directory, time_stamp, switch_mode, n_seconds, presummed_prf,
   print("Dataset", time_stamp, "loaded successfully.")
   return data
 
-#-----------------------------------------------------------------------------------------------------#
+#---------------------------------------------------------------------------------------------------------------------------------#
 def load_radar_parameters(root_directory):
     '''
     Important information about the data is stored in the configuration file of each data directory
@@ -238,13 +225,8 @@ def load_radar_parameters(root_directory):
 
     print("Configuration parameters loaded.")   # check point
 
-    # n_range_bins = max_range - min_range
-
     # realisable prf of data file stored in memory as data rate is halved when writing to memory
     presummed_prf = prf/presumming_factor # TODO rename to more understandable term
-    #if switch_mode == 3:
-    #presummed_prf = presummed_prf/2
-
     n_az_points = int(n_seconds*presummed_prf)
     if switch_mode == 3:
         n_az_points = int(n_seconds*presummed_prf//2)
@@ -282,68 +264,16 @@ def load_radar_parameters(root_directory):
     n_range_bins = max_range_bin - min_range_bin
 
     min_chunk = 0
-    max_chunk = int(np.ceil(prf*n_seconds))
-    n_chunks = max_chunk - min_chunk
+    max_chunk = int(np.ceil(presummed_prf*n_seconds))
+    n_az_points = max_chunk - min_chunk
+    if switch_mode == 3:
+        n_az_points = int(n_seconds*presummed_prf//2)
 
     return time_stamp, switch_mode, n_seconds, prf, decimation_factor, presummed_prf, ns_pri, \
             min_range, max_range, n_range_bins, sampling_rate, n_az_points, g2_adc, n_range_bins, \
-              n_chunks, range_resolution, ns_fft
+            range_resolution, ns_fft, centre_freq, wavelength
 
-#-----------------------------------------------------------------------------------------------------#
-def window(data, switch_mode, ns_pri):
-    '''
-    Attempt at windowing the data to remove high sidelobes
-    Using Hamming window function
-    '''
-    window_function = np.hamming(ns_pri)
-
-    window_function = np.array([window_function])
-
-    if switch_mode  == 1:
-      channel_1a = data[:,:,0]
-      channel_1b = data[:,:,1]
-
-      channel_1a = np.multiply(channel_1a, np.transpose(window_function))
-      channel_1b = np.multiply(channel_1b, np.transpose(window_function))
-
-      data_out = np.dstack((channel_1a, channel_1b))
-    
-    if switch_mode  == 2:
-      channel_2a = data[:,:,0]
-      channel_2b = data[:,:,1]
-
-      channel_2a = np.multiply(channel_2a, np.transpose(window_function))
-      channel_2b = np.multiply(channel_2b, np.transpose(window_function))
-
-      data_out = np.dstack((channel_2a, channel_2b))
-          
-    elif switch_mode == 3:
-      channel_1a = data[:,:,0]
-      channel_1b = data[:,:,1]
-      channel_2a = data[:,:,2]
-      channel_2b = data[:,:,3]
-
-      channel_1a = np.multiply(channel_1a, np.transpose(window_function))
-      channel_1b = np.multiply(channel_1b, np.transpose(window_function))
-      channel_2a = np.multiply(channel_2a, np.transpose(window_function))
-      channel_2b = np.multiply(channel_2b, np.transpose(window_function))
-
-      data_out = np.dstack((channel_1a,    # 1a
-                            channel_1b,    # 1b
-                            channel_2a,    # 2a
-                            channel_2b))   # 2b
-
-    return data_out
-
-
-def fast_time_fft(data, ns_fft):
-  # n_az_points = data.shape[0]
-  # n_FFT = int(math.pow(2, math.ceil(np.log2(n_az_points))))
-  data = np.fft.fftshift(np.fft.fft(data, ns_fft, axis=0), axes=0)
-
-  return data
-
-
+#---------------------------------------------------------------------------------------------------------------------------------#
 def save_raw(data, root_directory, switch_mode, n_range_bins, n_seconds, time_stamp):
   '''
   Not currently saving raw data as intended
@@ -377,7 +307,7 @@ def save_raw(data, root_directory, switch_mode, n_range_bins, n_seconds, time_st
 
   print('Binary image save to ' + image_path)
 
-
+#---------------------------------------------------------------------------------------------------------------------------------#
 def range_doppler(data, root_directory, time_stamp, switch_mode, n_seconds, presummed_prf, max_range, sampling_rate, all=False):
   '''
   Produces and saves a Range_Doppler plot of SAR data
@@ -458,7 +388,7 @@ def range_doppler(data, root_directory, time_stamp, switch_mode, n_seconds, pres
       plot_rd_map(title='rd', data=channel_2b_fft, x_axis=x_axis, y_axis=y_axis, switch_mode=2, \
                 channel='b', root_directory=root_directory, time_stamp=time_stamp)
 
-
+#---------------------------------------------------------------------------------------------------------------------------------#
 def plot_rd_map(title, data, x_axis, y_axis, switch_mode, channel, root_directory, time_stamp):
   '''
   Plot Range-Doppler map figure to file
@@ -483,7 +413,7 @@ def plot_rd_map(title, data, x_axis, y_axis, switch_mode, channel, root_director
   
   print(time_stamp + " " + title.upper() + " " + str(switch_mode) + channel + " saved.")
 
-
+#---------------------------------------------------------------------------------------------------------------------------------#
 def rti(data, root_directory, time_stamp, switch_mode, n_seconds, ns_pri, presummed_prf, max_range, title, all=False):
   '''
   Produces and saves a range time intensity plot of the data
@@ -502,12 +432,11 @@ def rti(data, root_directory, time_stamp, switch_mode, n_seconds, ns_pri, presum
     channel_1b = data[:,:,1]
 
     # channel_1a_fft = fast_time_fft(data=channel_1a, ns_fft=ns_fft)
-    plot_rti(title=title, data=channel_1a_fft, x_axis=x_axis, y_axis=y_axis, switch_mode=switch_mode, \
+    plot_rti(title=title, data=channel_1a, x_axis=x_axis, y_axis=y_axis, switch_mode=switch_mode, \
               channel='a', root_directory=root_directory, time_stamp=time_stamp)
 
     if all:
-      # channel_1b_fft = fast_time_fft(data=channel_1b, ns_fft=ns_fft)
-      plot_rti(title=title, data=channel_1b_fft, x_axis=x_axis, y_axis=y_axis, switch_mode=switch_mode, \
+      plot_rti(title=title, data=channel_1b, x_axis=x_axis, y_axis=y_axis, switch_mode=switch_mode, \
               channel='b', root_directory=root_directory, time_stamp=time_stamp)
   
   elif switch_mode == 2:
@@ -516,13 +445,11 @@ def rti(data, root_directory, time_stamp, switch_mode, n_seconds, ns_pri, presum
     channel_2b = data[:,:,1]
 
     # FFT in the fast-time axis
-    # channel_2a_fft = fast_time_fft(data=channel_2a, ns_fft=ns_fft)
     plot_rti(title=title, data=channel_2a, x_axis=x_axis, y_axis=y_axis, switch_mode=switch_mode, \
               channel='a', root_directory=root_directory, time_stamp=time_stamp)
 
     if all:
       # FFT in the fast-time axis
-      # channel_2b_fft = fast_time_fft(data=channel_2b, ns_fft=ns_fft)
       plot_rti(title=title, data=channel_2b, x_axis=x_axis, y_axis=y_axis, switch_mode=switch_mode, \
               channel='b', root_directory=root_directory, time_stamp=time_stamp)
 
@@ -533,24 +460,20 @@ def rti(data, root_directory, time_stamp, switch_mode, n_seconds, ns_pri, presum
     channel_2b = data[:,:,3]
     
     # channel_1a_fft = fast_time_fft(data=channel_1a, ns_fft=ns_fft)
-    plot_rti(title=title, data=channel_1a_fft, x_axis=x_axis, y_axis=y_axis, switch_mode=1, \
+    plot_rti(title=title, data=channel_1a, x_axis=x_axis, y_axis=y_axis, switch_mode=1, \
               channel='a', root_directory=root_directory, time_stamp=time_stamp)
     
-    if all:
-      # channel_1b_fft = fast_time_fft(data=channel_1b, ns_fft=ns_fft)
-      # channel_2a_fft = fast_time_fft(data=channel_2a, ns_fft=ns_fft)
-      # channel_2b_fft = fast_time_fft(data=channel_2b, ns_fft=ns_fft)
-      
-      plot_rti(title=title, data=channel_1b_fft, x_axis=x_axis, y_axis=y_axis, switch_mode=1, \
+    if all:      
+      plot_rti(title=title, data=channel_1b, x_axis=x_axis, y_axis=y_axis, switch_mode=1, \
               channel='b', root_directory=root_directory, time_stamp=time_stamp)
           
-      plot_rti(title=title, data=channel_2a_fft, x_axis=x_axis, y_axis=y_axis, switch_mode=2, \
+      plot_rti(title=title, data=channel_2a, x_axis=x_axis, y_axis=y_axis, switch_mode=2, \
               channel='a', root_directory=root_directory, time_stamp=time_stamp)
       
-      plot_rti(title=title, data=channel_2b_fft, x_axis=x_axis, y_axis=y_axis, switch_mode=2, \
+      plot_rti(title=title, data=channel_2b, x_axis=x_axis, y_axis=y_axis, switch_mode=2, \
               channel='b', root_directory=root_directory, time_stamp=time_stamp)
 
-
+#---------------------------------------------------------------------------------------------------------------------------------#
 def plot_rti(title, data, x_axis, y_axis, switch_mode, channel, root_directory, time_stamp):
   '''
   Plot and save Range-Time Intensity to file
@@ -561,9 +484,10 @@ def plot_rti(title, data, x_axis, y_axis, switch_mode, channel, root_directory, 
   plt.ylabel("Range [m]")
   
   if title == 'rti':
+    data = data/np.amax(data)
     data_dB = 20*np.log10(abs(data))
     data_max = np.amax(data_dB)
-    data_min = np.nanmin(np.mean(data_dB, axis=1))
+    data_min = np.nanmin(np.mean(data_dB, axis=1)) + 65
 
     data_dB = np.clip(data_dB, data_min, data_max)
 
@@ -593,66 +517,9 @@ def plot_rti(title, data, x_axis, y_axis, switch_mode, channel, root_directory, 
   
   print(time_stamp + " " + title.upper() + " " + str(switch_mode) + channel + " saved.")
 
-
-def plot_histogram(data, root_directory):
-  '''
-  Plot a histogram of the data to visualise the spread of data
-  Not currently working as intended
-  '''
-  #TODO: Determine what information to plot that will make a meaning report of the data
-
-  channel_1a = data[:,:,0]
-  channel_1b = data[:,:,1]
-  channel_1a_fft = np.fft.fftshift(np.fft.fft(channel_1a, axis=0))
-  channel_1b_fft = np.fft.fftshift(np.fft.fft(channel_1b, axis=0))
-  
-  plt.figure()
-  plt.hist(np.abs(channel_1a_fft).flatten(), bins='auto')
-  plt.savefig(os.path.join(root_directory, "data_histogram_abs_1a.png"))
-
-  plt.figure()
-  plt.hist(np.abs(channel_1b_fft).flatten(), bins='auto')
-  plt.savefig(os.path.join(root_directory, "data_histogram_abs_1b.png"))
-
-  print("Histograms saved.")
-
-
-def haversine(lon_A, lat_A, lon_B, lat_B):
-  '''
-  This function is going to make use of the Haversine formula to calculate the distance between two points
-  Process is as follows:
-    - convert latitude and longitude to radians
-    - calculate radial distance between lon_A and lon_B
-    - calculate radial distance between lat_A and lat_B
-    - the result of the Haversine formula is calculated by making use of the law of cosine
-  '''
-  lon1 = math.radians(lon_A)
-  lon2 = math.radians(lon_B)
-  lat1 = math.radians(lat_A)
-  lat2 = math.radians(lat_B)
-
-  dlon = lon2 - lon1
-  dlat = lat2 - lat1
-  
-  a = math.pow(math.sin(dlat/2), 2) + \
-    math.cos(lat1)*math.cos(lat2)*math.pow(math.sin(dlon/2), 2)
-  
-  c = math.atan2(math.sqrt(a), math.sqrt(1-a))
-
-  R = 6371  # Earth's approximate radius in kilometres 
-
-  # return distance by which to compensate in meters
-  distance = 0  # default case
-  if dlat > 0:    # provide an error margin
-    distance = -1*R*c*1000
-  if dlat < 0:
-    distance = 1*R*c*1000
-
-  # distance = 0  # debug statement
-  return distance # in metres
-
-
-def motion_compensation(data, x_axis, y_axis, switch_mode, root_directory, n_seconds, ns_pri, n_az_points, plot_path=False):
+#---------------------------------------------------------------------------------------------------------------------------------#
+def motion_compensation(data, x_axis, y_axis, switch_mode, root_directory, n_seconds, n_range_bins, n_az_points, wavelength, \
+                        min_range, max_range, plot_path=True):
   '''
   Read motion data from JSON generated by system
   Extract the following information:
@@ -663,8 +530,7 @@ def motion_compensation(data, x_axis, y_axis, switch_mode, root_directory, n_sec
     - expected aperture, e
     - offset normal, n
   '''
-  # apply range compression to data
-  # data = fast_time_fft(data=data, ns_fft=ns_fft) # has shape [n_fft, n_az, n_pol]
+  print("\nCorrecting motion errors...")
 
   motion_filename = glob.glob(os.path.join(root_directory, '*.json'))[0]
   
@@ -719,113 +585,63 @@ def motion_compensation(data, x_axis, y_axis, switch_mode, root_directory, n_sec
   for t in timestamp:
     t_interpolate = np.append(t_interpolate, (t-timestamp[0])/1e3)  # given 10Hz refresh rate, t has 0.1s increments
 
-  n_FFT = data.shape[0]
-  n_pol = data.shape[2]
-  az_axis = np.linspace(0, n_seconds, n_FFT, endpoint=False)
+  az_axis = np.linspace(0, n_seconds, n_az_points, endpoint=False)
   range_deviation = interpolate.interp1d(t_interpolate, range_deviation, kind='linear')
   range_deviation = range_deviation(az_axis)
-
-  # generate rande deviation map
-  range_deviation = np.transpose(np.tile(range_deviation, (n_az_points, 1)))
   
   # apply phase correction
   # TODO: extract system hardware properties correctly
-  phase_shift = np.exp(np.multiply(-1j*(4*np.pi)/2437498854.473165, range_deviation))
+  phase_shift = np.exp(np.multiply(-1j*(4*np.pi)/wavelength, range_deviation))
   # phase_shift = np.array([phase_shift])
-  phase_shift = np.repeat(phase_shift[:, :, np.newaxis], n_pol, axis=2)
+  # phase_shift = np.repeat(phase_shift[:, :, np.newaxis], n_pol, axis=2)
+  phase_shift = np.dstack((phase_shift,))
 
-  data_out = np.array([])
+  # data_out = np.array([])
+  data_out = np.multiply(data, phase_shift)
 
-  if switch_mode  == 1:
-    channel_1a = data[:,:,0]
-    channel_1b = data[:,:,1]
-    
-    temp_1a = np.multiply(channel_1a, phase_shift)
-    temp_1b = np.multiply(channel_1b, phase_shift)
-    
-    data_out = np.dstack((temp_1a, temp_1b))
-  
-  if switch_mode  == 2:
-    channel_2a = data[:,:,0]
-    channel_2b = data[:,:,1]
-    
-    # temp_2a = np.multiply(channel_2a, phase_shift)
-    # temp_2b = np.multiply(channel_2b, phase_shift)
-
-    # data_out = np.dstack((temp_2a, temp_2b))
-    data_out = np.multiply(data, phase_shift)
-        
-  elif switch_mode == 3:
-    channel_1a = data[:,:,0]
-    channel_1b = data[:,:,1]
-    channel_2a = data[:,:,2]
-    channel_2b = data[:,:,3]
-
-    temp_1a = np.multiply(channel_1a, phase_shift)
-    temp_1b = np.multiply(channel_1b, phase_shift)
-    temp_2a = np.multiply(channel_2a, phase_shift)
-    temp_2b = np.multiply(channel_2b, phase_shift)
- 
-    data_out = np.dstack((temp_1a,    # 1a
-                          temp_1b,    # 1b
-                          temp_2a,    # 2a
-                          temp_2b))   # 2b
-  '''
   # apply range bin correction
   #   find max r_fft
   #   determine range bin size = r_fft/ns_fft
-  rbin_size = int(y_axis[-1])/n_az_points
-  
-  # how many range bins is the range deviation at each pri?
-  range_dev_bins = np.floor(range_deviation/rbin_size)
+  total_range = max_range - min_range
+  range_bin_size = max_range/n_range_bins # [m] each range bin spans
 
-  # new_rbin = rbin + np.ceil(delta_rbin)
-  temp = np.array([])
-  n_polarizations = 0 # error case
+  # number of range bins to shift given delta_range calculated above
+  range_bin_shift = np.floor(range_deviation/range_bin_size)
+  
   if switch_mode==1 or switch_mode==2:
-    n_polarizations = 2
-    temp = np.zeros((ns_pri, n_az_points, n_polarizations)).astype('complex64')
-  
+    temp = np.zeros((n_range_bins, n_az_points, 2)).astype('complex64')
   elif switch_mode==3:
-    n_polarizations = 4
-    temp = np.zeros((ns_pri, n_az_points, n_polarizations)).astype('complex64')
+    temp = np.zeros((n_range_bins, n_az_points, 4)).astype('complex64')
 
-  # pad the range axis with zeros
-  rbin_start = abs(np.min(range_dev_bins))  # zeroth range bin
-  rbin_resize = rbin_start + np.max(range_dev_bins)
-  temp = np.resize(temp, (ns_pri, int(n_az_points+rbin_resize), n_polarizations))
-
-  for pol in range(0, n_polarizations):
-      for pri in range(0, ns_pri):
-        for rbin in range(0, n_az_points):
-          new_rbin = rbin + int(range_dev_bins[pri])
-          new_rbin = int(new_rbin)
-
-          # shift range bin from j to new_rbin
-          if (new_rbin >= 0 and new_rbin < n_az_points):
-            temp[pri,new_rbin,pol] = data_out[pri,rbin,pol]
-          else:
-            # need to pad the range axis with zeros and resize the dataset
-            #if new_rbin < 0:
-              #temp = temp.resize((ns_pri, n_az_points-new_rbin, n_polarizations))
-              
-              #temp[j,k,i] = data_out[j,new_rbin,i]
-            if new_rbin >= n_az_points:
-
-              temp[pri,new_rbin,pol] = data_out[pri,rbin,pol]
+  for i in range(0, n_az_points):
+    for j in range(0, n_range_bins):
+      x = range_bin_shift[i]
+      new_rbin = j + int(x)
+      
+      # limit cases where range shift is too large
+      if x > 2:
+        new_rbin = j + 2
+      elif x < -2:
+        new_rbin = j - 2
+      
+      # shift range bin from j to new_rbin
+      if (new_rbin >= 0 and new_rbin < n_range_bins):
+          temp[j,i] = data_out[new_rbin, i]
 
   data_out = temp
-  '''
   print("Motion errors corrected on dataset")
   return data_out
 
-
-def SAR(data, root_directory, switch_mode, time_stamp, prf, n_az_points, n_range_bins, max_range, n_seconds, d_range=[]):
+#---------------------------------------------------------------------------------------------------------------------------------#
+def SAR(data, root_directory, switch_mode, time_stamp, prf, n_range_bins, max_range, n_seconds, g2_adc, range_resolution, \
+        n_az_points, centre_freq, d_range=[]):
   '''
   Make call to G2 program
   '''
-  # TODO: for now
-  synthetic_aperture = n_seconds*30
+  print("\nRunning the SAR processor...")
+
+  # calculate synthetic aperture from motion data
+  synthetic_aperture = load_motion_data(root_directory=root_directory, parameter='aperture')
 
   # pixel scaling for SAR image
   scaled_width = int(n_range_bins / max_range * synthetic_aperture)
@@ -833,24 +649,31 @@ def SAR(data, root_directory, switch_mode, time_stamp, prf, n_az_points, n_range
   G2_out = data
 
   if switch_mode == 1:
-    G2_out_1a = G2(data=data[:,:,0], n_az_points=n_az_points, title='1a', root_directory=root_directory, time_stamp=time_stamp, prf=prf, n_range_bins=n_range_bins)
-    G2_out_1b = G2(data=data[:,:,1], n_az_points=n_az_points, title='1b', root_directory=root_directory, time_stamp=time_stamp, prf=prf, n_range_bins=n_range_bins)
-
+    G2_out_1a = G2(data=data[:,:,0], title='1a', root_directory=root_directory, time_stamp=time_stamp, \
+            prf=prf, n_range_bins=n_range_bins, g2_adc=g2_adc, range_resolution=range_resolution, n_az_points=n_az_points, centre_freq=centre_freq)
+    G2_out_1b = G2(data=data[:,:,1], title='1b', root_directory=root_directory, time_stamp=time_stamp, \
+            prf=prf, n_range_bins=n_range_bins, g2_adc=g2_adc, range_resolution=range_resolution, n_az_points=n_az_points, centre_freq=centre_freq)
     G2_out = np.dstack((G2_out_1a, G2_out_1b))
 
   elif switch_mode == 2:
-    G2_out_2a = G2(data=data[:,:,0], n_az_points=n_az_points, title='2a', root_directory=root_directory, time_stamp=time_stamp, prf=prf, n_range_bins=n_range_bins)
-    G2_out_2b = G2(data=data[:,:,1], n_az_points=n_az_points, title='2b', root_directory=root_directory, time_stamp=time_stamp, prf=prf, n_range_bins=n_range_bins)
+    G2_out_2a = G2(data=data[:,:,0], title='2a', root_directory=root_directory, time_stamp=time_stamp, \
+            prf=prf, n_range_bins=n_range_bins, g2_adc=g2_adc, range_resolution=range_resolution, n_az_points=n_az_points, centre_freq=centre_freq)
+    G2_out_2b = G2(data=data[:,:,1], title='2b', root_directory=root_directory, time_stamp=time_stamp, \
+            prf=prf, n_range_bins=n_range_bins, g2_adc=g2_adc, range_resolution=range_resolution, n_az_points=n_az_points, centre_freq=centre_freq)
 
     G2_out = np.dstack((G2_out_2a, G2_out_2b))
   
   elif switch_mode == 3:
     
-    G2_out_1a = G2(data=data[:,:,0], n_az_points=n_az_points, title='1a', root_directory=root_directory, time_stamp=time_stamp, prf=prf, n_range_bins=n_range_bins)
-    G2_out_1b = G2(data=data[:,:,1], n_az_points=n_az_points, title='1b', root_directory=root_directory, time_stamp=time_stamp, prf=prf, n_range_bins=n_range_bins)
-    G2_out_2a = G2(data=data[:,:,2], n_az_points=n_az_points, title='2a', root_directory=root_directory, time_stamp=time_stamp, prf=prf, n_range_bins=n_range_bins)
-    G2_out_2b = G2(data=data[:,:,3], n_az_points=n_az_points, title='2b', root_directory=root_directory, time_stamp=time_stamp, prf=prf, n_range_bins=n_range_bins)
-
+    G2_out_1a = G2(data=data[:,:,0], title='1a', root_directory=root_directory, time_stamp=time_stamp, \
+            prf=prf, n_range_bins=n_range_bins, g2_adc=g2_adc, range_resolution=range_resolution, n_az_points=n_az_points, centre_freq=centre_freq)
+    G2_out_1b = G2(data=data[:,:,1], title='1b', root_directory=root_directory, time_stamp=time_stamp, \
+            prf=prf, n_range_bins=n_range_bins, g2_adc=g2_adc, range_resolution=range_resolution, n_az_points=n_az_points, centre_freq=centre_freq)
+    G2_out_2a = G2(data=data[:,:,2], title='2a', root_directory=root_directory, time_stamp=time_stamp, \
+            prf=prf, n_range_bins=n_range_bins, g2_adc=g2_adc, range_resolution=range_resolution, n_az_points=n_az_points, centre_freq=centre_freq)
+    G2_out_2b = G2(data=data[:,:,3], title='2b', root_directory=root_directory, time_stamp=time_stamp, \
+            prf=prf, n_range_bins=n_range_bins, g2_adc=g2_adc, range_resolution=range_resolution, n_az_points=n_az_points, centre_freq=centre_freq)
+  
     G2_out= np.dstack((G2_out_1a, G2_out_1b))
     G2_out = np.dstack((G2_out, G2_out_2a))
     G2_out = np.dstack((G2_out, G2_out_2b))
@@ -859,6 +682,9 @@ def SAR(data, root_directory, switch_mode, time_stamp, prf, n_az_points, n_range
   image = pow(np.mean(abs(G2_out), axis=2), 2)
   image.astype('complex64').tofile(
 			os.path.join(root_directory, 'quicklook/' + 'image.bin') )
+  
+  # normalize data
+  image = image/np.amax(image)
     
   plt.subplots(nrows=1,ncols=1)
   plt.xlabel('Azimuth [m]')
@@ -868,18 +694,19 @@ def SAR(data, root_directory, switch_mode, time_stamp, prf, n_az_points, n_range
   img_mean = np.mean(image, axis=1)
   
   # dynamic range
-  a_min = np.nanmin(img_mean[img_mean!=-np.inf]) + 50
+  a_min = np.nanmin(img_mean[img_mean!=-np.inf]) + 65
   a_max = np.amax(image)
   if d_range:
     a_min = d_range[0]
     a_min = d_range[1]
   
   image = np.clip(image, a_min=a_min, a_max=a_max)
-    
-  plt.imshow(image, cmap='gray', aspect='equal', origin='upper', vmin=None, vmax=None)
+  
+  # cmap = [viridis, plasma, inferno, magma, cividis, PiYG, PRGn, BrBG, PuOr, RdGy, RdBu, RdYlBu, RdYlGn, Spectral, coolwarm, bwr, seismic]
+  plt.imshow(image, cmap='viridis', origin='upper', aspect='equal', interpolation='none', vmin=None, vmax=None)
   file_name = time_stamp + '.sar.noco'
   image_path = os.path.join(root_directory, 'quicklook/'+file_name)
-  plt.imsave(image_path, image, cmap='gray', origin='upper', format='png', dpi=300)
+  plt.imsave(image_path, image, cmap='viridis', origin='upper', format='png')#, dpi=300)
 
   sar_image = Image.open(image_path)
   sar_image.load()
@@ -889,8 +716,8 @@ def SAR(data, root_directory, switch_mode, time_stamp, prf, n_az_points, n_range
     
   print("SAR image saved.")
 
-
-def G2(data, n_az_points, title, root_directory, time_stamp, prf, n_range_bins):
+#---------------------------------------------------------------------------------------------------------------------------------#
+def G2(data, title, root_directory, time_stamp, prf, n_range_bins, g2_adc, range_resolution, n_az_points, centre_freq):
   '''
   SAR processor using G2
   (C) J Horrell (1999)
@@ -909,6 +736,8 @@ def G2(data, n_az_points, title, root_directory, time_stamp, prf, n_range_bins):
   # save data to file
   data.astype('complex64').tofile(g2_input)
 
+  mean_velocity = load_motion_data(root_directory=root_directory, parameter='velocity')
+
   with open(g2_cmd, 'w') as f_id:
     f_id.write('miloSAR azimuth compression command file (azcom)\n')
     f_id.write('$ProgramVersion (jmh)         => 1.1\n\n')
@@ -917,14 +746,14 @@ def G2(data, n_az_points, title, root_directory, time_stamp, prf, n_range_bins):
     f_id.write('$LogFileName                  => ' +
             str(g2_log) + '\n')
     f_id.write('$InputStartSampleDelay        => ' + str(0) + '\n')
-    f_id.write('$CarrierFreq [Hz]             => ' + str(2437498854.473165) + '\n')
+    f_id.write('$CarrierFreq [Hz]             => ' + str(centre_freq) + '\n')
     f_id.write('$InputPRF [Hz]                => ' + str(prf) + '\n')
-    f_id.write('$NomGroundSpeed [m/s]         => ' + str(30) + '\n')  # need to claculate average velocity
+    f_id.write('$NomGroundSpeed [m/s]         => ' + str(mean_velocity) + '\n')
     f_id.write('$InputFileAzPts               => ' + str(n_az_points) + '\n')
-    f_id.write('$StartProcessAzPt             => ' + str(0) + '\n') #change
+    f_id.write('$StartProcessAzPt             => ' + str(0) + '\n')
     f_id.write('$AzPtsToProcess               => ' + str(n_az_points) + '\n')
     f_id.write('$InputFileRngBins             => ' + str(n_range_bins) + '\n')
-    f_id.write('$StartProcessRngBin           => ' + str(0) + '\n') #change
+    f_id.write('$StartProcessRngBin           => ' + str(0) + '\n')
     f_id.write('$RngBinsToProcess             => ' + str(n_range_bins) + '\n')
     f_id.write('$InputDCOffsetI               => ' + str(0.0) + '\n')
     f_id.write('$InputDCOffsetQ               => ' + str(0.0) + '\n')
@@ -934,14 +763,14 @@ def G2(data, n_az_points, title, root_directory, time_stamp, prf, n_range_bins):
     f_id.write('$AppendExistOutFileFlg [Y/N]  => ' + str('N') + '\n')
     f_id.write('$RngFocSegments               => ' + str(-1) + '\n')
     f_id.write('$RefFuncSign [+-1]            => ' + str(1) + '\n') #change
-    f_id.write('$A2DFreq [Hz]                 => ' + str(284881608.77714235) + '\n')
-    f_id.write('$NomAzRes [m]                 => ' + str(0.5475561694721032) + '\n')
+    f_id.write('$A2DFreq [Hz]                 => ' + str(g2_adc) + '\n')
+    f_id.write('$NomAzRes [m]                 => ' + str(range_resolution/2) + '\n')
     f_id.write('$WinConstTime [0.0-1.0]       => ' + str(0.08) + '\n')
     f_id.write('$NumLooks                     => ' + str(1) + '\n')
     f_id.write('$LookOverlapFrac [0.0-1.0]    => ' + str(0.0) + '\n')
     f_id.write('$WinConstFreq [0.0-1.0]       => ' + str(0.08) + '\n')
     f_id.write('$RngCurvInterpSize            => ' + str(16) + '\n')
-    f_id.write('$RngCurvBatchSize             => ' + str(64) + '\n') #play with this
+    f_id.write('$RngCurvBatchSize             => ' + str(16) + '\n') #play with this
     f_id.write('$PostSumRatio                 => ' + str(1) + '\n')
     f_id.write('$DetectMethod                 => ' + str(0) + '\n')
     f_id.write('$InputDataType                => ' + str(3) + '\n')
@@ -950,16 +779,15 @@ def G2(data, n_az_points, title, root_directory, time_stamp, prf, n_range_bins):
     f_id.write('$ReportMax [1/0]              => ' + str(1) + '\n')
 
   azcom_executable = os.path.join(os.getcwd(), 'g2', 'azcom')
-  os.system(azcom_executable + ' ' + str(g2_cmd) + ' > ' + root_directory + '/quicklook/g2out.txt')
+  # os.system(azcom_executable + ' ' + str(g2_cmd) + ' > ' + root_directory + '/quicklook/g2out.txt')
+  os.system(azcom_executable + ' ' + str(g2_cmd))
 
   image = np.fromfile(g2_out, dtype='complex64')
-  #image = np.fromfile(g2_input, dtype='complex64')
   G2_out = np.flipud(image.reshape(n_range_bins, n_az_points))
-  #G2_out = np.flipud(image.reshape(2048, n_az_points))
   G2_out = np.nan_to_num(G2_out)
 
   return G2_out
 
-
+#---------------------------------------------------------------------------------------------------------------------------------#
 if __name__ == "__main__":
   main()  # call the main function
