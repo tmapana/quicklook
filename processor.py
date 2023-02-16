@@ -610,15 +610,16 @@ def motion_compensation(data, switch_mode, root_directory, n_seconds, n_range_bi
 
   for i in range(0, n_az_points):
     for j in range(0, n_range_bins):
-      x = range_bin_shift[i]
-      new_rbin = j + int(x)
+      x = int(range_bin_shift[i])
       
       # limit cases where range shift is too large
       if x > 2:
-        new_rbin = j + 2
+        x = 1
       elif x < -2:
-        new_rbin = j - 2
+        x = -1
       
+      new_rbin = j + int(x)
+
       # shift range bin from j to new_rbin
       if (new_rbin >= 0 and new_rbin < n_range_bins):
           temp[j,i] = data_out[new_rbin, i]
@@ -689,8 +690,8 @@ def SAR(data, root_directory, switch_mode, time_stamp, prf, n_range_bins, max_ra
   img_mean = np.mean(image, axis=1)
   
   # dynamic range
-  a_min = np.nanmin(img_mean[img_mean!=-np.inf]) + 50
-  a_max = np.amax(image)
+  a_min = np.nanmin(img_mean[img_mean!=-np.inf]) + 30
+  a_max = np.amax(image) - 50
   if d_range:
     a_min = d_range[0]
     a_min = d_range[1]
