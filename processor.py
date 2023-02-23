@@ -597,7 +597,7 @@ def motion_compensation(data, switch_mode, root_directory, n_seconds, n_range_bi
   # apply range bin correction
   #   find max r_fft
   #   determine range bin size = r_fft/ns_fft
-  total_range = max_range - min_range
+  # total_range = max_range - min_range
   range_bin_size = max_range/n_range_bins # [m] each range bin spans
 
   # number of range bins to shift given delta_range calculated above
@@ -613,9 +613,9 @@ def motion_compensation(data, switch_mode, root_directory, n_seconds, n_range_bi
       x = int(range_bin_shift[i])
       
       # limit cases where range shift is too large
-      if x > 2:
+      if x > 1:
         x = 1
-      elif x < -2:
+      elif x < -1:
         x = -1
       
       new_rbin = j + int(x)
@@ -690,11 +690,13 @@ def SAR(data, root_directory, switch_mode, time_stamp, prf, n_range_bins, max_ra
   img_mean = np.mean(image, axis=1)
   
   # dynamic range
-  a_min = np.nanmin(img_mean[img_mean!=-np.inf]) + 30
-  a_max = np.amax(image) - 50
+  a_min = np.nanmin(img_mean[img_mean!=-np.inf])
+  a_max = np.amax(image)
   if d_range:
-    a_min = d_range[0]
-    a_min = d_range[1]
+    if d_range[0]:
+      a_min = d_range[0]
+    if d_range[1]:
+      a_min = d_range[1]
   
   image = np.clip(image, a_min=a_min, a_max=a_max)
   
