@@ -690,7 +690,7 @@ def SAR(data, root_directory, switch_mode, time_stamp, prf, n_range_bins, max_ra
   img_mean = np.mean(image, axis=1)
   
   # dynamic range
-  a_min = np.nanmin(img_mean[img_mean!=-np.inf])
+  a_min = np.nanmin(img_mean[img_mean!=-np.inf]) + 50
   a_max = np.amax(image)
   if d_range:
     if d_range[0]:

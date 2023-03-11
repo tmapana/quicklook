@@ -87,6 +87,7 @@ def window(data, switch_mode, ns_pri):
     Using Hamming window function
     '''
     window_function = np.hamming(ns_pri)
+    # window_function = np.blackman(ns_pri)
 
     window_function = np.array([window_function])
 
