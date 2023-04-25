@@ -20,6 +20,7 @@ N_CHANNELS = 2
 N_COUNTER = 75
 FD = pow(2, 24) - 1
 RF_DIV = 4
+DEPRESSION_ANGLE = 20 # angle of depression of antennas
 
 #-----------------------------------------------------------------------------------------------------#
 def next_pow_two(number):
