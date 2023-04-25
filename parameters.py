@@ -21,6 +21,9 @@ N_COUNTER = 75
 FD = pow(2, 24) - 1
 RF_DIV = 4
 DEPRESSION_ANGLE = 20 # angle of depression of antennas
+RAMP_BANDWIDTH = 175e6
+
+
 
 #-----------------------------------------------------------------------------------------------------#
 def next_pow_two(number):

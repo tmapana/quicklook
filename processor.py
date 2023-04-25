@@ -55,15 +55,26 @@ def main():
 
     # Extract configuration parameters from setup.ini and summary.ini files
     time_stamp, switch_mode, n_seconds, prf, decimation_factor, presummed_prf, ns_pri, \
-        min_range, max_range, n_range_bins, sampling_rate, n_az_points, g2_adc, n_range_bins, \
-            range_resolution, ns_fft, centre_freq, wavelength \
+        min_range, max_range, n_range_bins, sampling_rate, g2_adc, n_range_bins, \
+            range_resolution, ns_fft, centre_freq, wavelength, n_chunks \
               = load_radar_parameters(root_directory=root_directory)
+    
+    # Axes definitions
+    sample_rate = RP_CLK/decimation_factor
+    ramp_period = 1/prf
+    chirp_rate = ramp_period/RAMP_BANDWIDTH
+    range_scaling = (c/2) / chirp_rate
+
+    range_axis = np.linspace(0, sample_rate, ns_fft, endpoint=False) * range_scaling
+    time_axis = np.linspace(0, n_seconds, int(n_chunks), endpoint=False)
 
     # load data from file and pack into a data matrix
     data = load_data(root_directory=root_directory, time_stamp=time_stamp, switch_mode=switch_mode, \
                     n_seconds=n_seconds, presummed_prf=presummed_prf, ns_pri=ns_pri)
+    print(data.shape)
 
     data = fast_time_fft(data=data, ns_fft=ns_fft)
+    print(data.shape)
 
     # OPTIONS
     if len(sys.argv) > 2:
@@ -90,7 +101,7 @@ def main():
         elif sys.argv[opt] == 'mocomp':
           # perform motion compensation
           data = motion_compensation(data=data, switch_mode=switch_mode, root_directory=root_directory, \
-                                      n_seconds=n_seconds, n_range_bins=int(ns_fft), n_az_points=n_az_points, \
+                                      n_seconds=n_seconds, n_range_bins=int(ns_fft), n_chunks=n_chunks, \
                                         wavelength=wavelength, max_range=max_range, prf=prf, \
                                           range_resolution=range_resolution, ns_fft=ns_fft, plot_path=True)
         
@@ -98,7 +109,7 @@ def main():
           # run SAR processor
           SAR(data=data, root_directory=root_directory, switch_mode=switch_mode, time_stamp=time_stamp, \
               prf=presummed_prf, n_range_bins=n_range_bins, max_range=max_range, g2_adc=g2_adc, \
-              range_resolution=range_resolution, n_az_points=n_az_points, centre_freq=centre_freq, d_range=[])
+              range_resolution=range_resolution, n_chunks=n_chunks, centre_freq=centre_freq, d_range=[])
 
         else:
           print("\nUnidentified function selected.")
@@ -144,8 +155,8 @@ def load_data(root_directory, time_stamp, switch_mode, n_seconds, presummed_prf,
   channel_b_data = data_array[3::4] + 1j*data_array[2::4]
 
   # calculate the number of samples recorded per channel
-  n_az_points = int(n_seconds*presummed_prf)
-  n_samples_per_channel = int(n_az_points*ns_pri)
+  n_chunks = int(n_seconds*presummed_prf)
+  n_samples_per_channel = int(n_chunks*ns_pri)
 
   '''
   The actual file stored in memory has more bytes than what is calculated
@@ -159,9 +170,9 @@ def load_data(root_directory, time_stamp, switch_mode, n_seconds, presummed_prf,
 
   # reshape array into a 2D matrix for each channel in order to perform fft
   channel_a_data = np.transpose(channel_a_data.reshape(
-    n_az_points, ns_pri))
+    n_chunks, ns_pri))
   channel_b_data = np.transpose(channel_b_data.reshape(
-    n_az_points, ns_pri))
+    n_chunks, ns_pri))
   
   # Pack data into a matrix
   data = np.array([])
@@ -223,9 +234,6 @@ def load_radar_parameters(root_directory):
 
     # realisable prf of data file stored in memory as data rate is halved when writing to memory
     presummed_prf = prf/presumming_factor # TODO rename to more understandable term
-    n_az_points = int(n_seconds*presummed_prf)
-    if switch_mode == 3:
-        n_az_points = int(n_seconds*presummed_prf//2)
 
     # number of range bins recorded for each pri
     ns_pri = end_index - start_index + 1
@@ -261,13 +269,13 @@ def load_radar_parameters(root_directory):
 
     min_chunk = 0
     max_chunk = int(np.ceil(presummed_prf*n_seconds))
-    n_az_points = max_chunk - min_chunk
+    n_chunks = max_chunk - min_chunk
     if switch_mode == 3:
-        n_az_points = int(n_seconds*presummed_prf//2)
+        n_chunks = int(n_seconds*presummed_prf//2)
 
     return time_stamp, switch_mode, n_seconds, prf, decimation_factor, presummed_prf, ns_pri, \
-            min_range, max_range, n_range_bins, sampling_rate, n_az_points, g2_adc, n_range_bins, \
-            range_resolution, ns_fft, centre_freq, wavelength
+            min_range, max_range, n_range_bins, sampling_rate, g2_adc, n_range_bins, \
+            range_resolution, ns_fft, centre_freq, wavelength, n_chunks
 
 #---------------------------------------------------------------------------------------------------------------------------------#
 def save_raw(data, root_directory, switch_mode, n_range_bins, n_seconds, time_stamp):
@@ -514,7 +522,7 @@ def plot_rti(title, data, x_axis, y_axis, switch_mode, channel, root_directory, 
   print(time_stamp + " " + title.upper() + " " + str(switch_mode) + channel + " saved.")
 
 #---------------------------------------------------------------------------------------------------------------------------------#
-def motion_compensation(data, switch_mode, root_directory, n_seconds, n_range_bins, n_az_points, wavelength, \
+def motion_compensation(data, switch_mode, root_directory, n_seconds, n_range_bins, n_chunks, wavelength, \
                         max_range, prf, range_resolution, ns_fft, plot_path=True):
   '''
   Read motion data from JSON generated by system
@@ -528,7 +536,7 @@ def motion_compensation(data, switch_mode, root_directory, n_seconds, n_range_bi
   '''
   print("\nCorrecting motion errors...")
   x_axis = np.linspace(0, n_seconds, n_range_bins, endpoint=False)  # time axis
-  y_axis = np.linspace(0, max_range, n_az_points, endpoint=False)  # range axis
+  y_axis = np.linspace(0, max_range, n_chunks, endpoint=False)  # range axis
   motion_filename = glob.glob(os.path.join(root_directory, '*.json'))[0]
   
   # read motion file contents
@@ -576,7 +584,6 @@ def motion_compensation(data, switch_mode, root_directory, n_seconds, n_range_bi
   for t in timestamp:
     t_interpolate = np.append(t_interpolate, (t-timestamp[0])/1e3)  # given 10Hz refresh rate, t has 0.1s increments
 
-  # az_axis = np.linspace(0, n_seconds, n_az_points, endpoint=False)
   range_axis = np.linspace(0, n_seconds, n_range_bins, endpoint=False)
   range_deviation = interpolate.interp1d(t_interpolate, range_deviation, kind='linear')
   range_deviation = range_deviation(range_axis)
@@ -601,11 +608,11 @@ def motion_compensation(data, switch_mode, root_directory, n_seconds, n_range_bi
   range_bin_shift = np.floor(range_deviation/range_bin_size)
   
   if switch_mode==1 or switch_mode==2:
-    temp = np.zeros((n_range_bins, n_az_points, 2)).astype('complex64')
+    temp = np.zeros((n_range_bins, n_chunks, 2)).astype('complex64')
   elif switch_mode==3:
-    temp = np.zeros((n_range_bins, n_az_points, 4)).astype('complex64')
+    temp = np.zeros((n_range_bins, n_chunks, 4)).astype('complex64')
 
-  # for i in range(0, n_az_points):
+  # for i in range(0, n_chunks):
   for j in range(0, n_range_bins):
     x = int(range_bin_shift[j])
     
@@ -629,7 +636,7 @@ def motion_compensation(data, switch_mode, root_directory, n_seconds, n_range_bi
   altitude_interp = altitude_interp(range_axis)
   max_alt = min(altitude_interp)
 
-  target_height = np.zeros((n_range_bins, n_az_points))
+  target_height = np.zeros((n_range_bins, n_chunks))
   elevation_angle = np.deg2rad(90-DEPRESSION_ANGLE)
   data_peak = data/np.amax(np.abs(data))
   for t in range(0, n_range_bins):
@@ -653,7 +660,7 @@ def motion_compensation(data, switch_mode, root_directory, n_seconds, n_range_bi
 
 #---------------------------------------------------------------------------------------------------------------------------------#
 def SAR(data, root_directory, switch_mode, time_stamp, prf, n_range_bins, max_range, g2_adc, range_resolution, \
-        n_az_points, centre_freq, d_range=[]):
+        n_chunks, centre_freq, d_range=[]):
   '''
   Make call to G2 program
   '''
@@ -669,29 +676,29 @@ def SAR(data, root_directory, switch_mode, time_stamp, prf, n_range_bins, max_ra
 
   if switch_mode == 1:
     G2_out_1a = G2(data=data[:,:,0], title='1a', root_directory=root_directory, time_stamp=time_stamp, \
-            prf=prf, n_range_bins=n_range_bins, g2_adc=g2_adc, range_resolution=range_resolution, n_az_points=n_az_points, centre_freq=centre_freq)
+            prf=prf, n_range_bins=n_range_bins, g2_adc=g2_adc, range_resolution=range_resolution, n_chunks=n_chunks, centre_freq=centre_freq)
     G2_out_1b = G2(data=data[:,:,1], title='1b', root_directory=root_directory, time_stamp=time_stamp, \
-            prf=prf, n_range_bins=n_range_bins, g2_adc=g2_adc, range_resolution=range_resolution, n_az_points=n_az_points, centre_freq=centre_freq)
+            prf=prf, n_range_bins=n_range_bins, g2_adc=g2_adc, range_resolution=range_resolution, n_chunks=n_chunks, centre_freq=centre_freq)
     G2_out = np.dstack((G2_out_1a, G2_out_1b))
 
   elif switch_mode == 2:
     G2_out_2a = G2(data=data[:,:,0], title='2a', root_directory=root_directory, time_stamp=time_stamp, \
-            prf=prf, n_range_bins=n_range_bins, g2_adc=g2_adc, range_resolution=range_resolution, n_az_points=n_az_points, centre_freq=centre_freq)
+            prf=prf, n_range_bins=n_range_bins, g2_adc=g2_adc, range_resolution=range_resolution, n_chunks=n_chunks, centre_freq=centre_freq)
     G2_out_2b = G2(data=data[:,:,1], title='2b', root_directory=root_directory, time_stamp=time_stamp, \
-            prf=prf, n_range_bins=n_range_bins, g2_adc=g2_adc, range_resolution=range_resolution, n_az_points=n_az_points, centre_freq=centre_freq)
+            prf=prf, n_range_bins=n_range_bins, g2_adc=g2_adc, range_resolution=range_resolution, n_chunks=n_chunks, centre_freq=centre_freq)
 
     G2_out = np.dstack((G2_out_2a, G2_out_2b))
   
   elif switch_mode == 3:
     
     G2_out_1a = G2(data=data[:,:,0], title='1a', root_directory=root_directory, time_stamp=time_stamp, \
-            prf=prf, n_range_bins=n_range_bins, g2_adc=g2_adc, range_resolution=range_resolution, n_az_points=n_az_points, centre_freq=centre_freq)
+            prf=prf, n_range_bins=n_range_bins, g2_adc=g2_adc, range_resolution=range_resolution, n_chunks=n_chunks, centre_freq=centre_freq)
     G2_out_1b = G2(data=data[:,:,1], title='1b', root_directory=root_directory, time_stamp=time_stamp, \
-            prf=prf, n_range_bins=n_range_bins, g2_adc=g2_adc, range_resolution=range_resolution, n_az_points=n_az_points, centre_freq=centre_freq)
+            prf=prf, n_range_bins=n_range_bins, g2_adc=g2_adc, range_resolution=range_resolution, n_chunks=n_chunks, centre_freq=centre_freq)
     G2_out_2a = G2(data=data[:,:,2], title='2a', root_directory=root_directory, time_stamp=time_stamp, \
-            prf=prf, n_range_bins=n_range_bins, g2_adc=g2_adc, range_resolution=range_resolution, n_az_points=n_az_points, centre_freq=centre_freq)
+            prf=prf, n_range_bins=n_range_bins, g2_adc=g2_adc, range_resolution=range_resolution, n_chunks=n_chunks, centre_freq=centre_freq)
     G2_out_2b = G2(data=data[:,:,3], title='2b', root_directory=root_directory, time_stamp=time_stamp, \
-            prf=prf, n_range_bins=n_range_bins, g2_adc=g2_adc, range_resolution=range_resolution, n_az_points=n_az_points, centre_freq=centre_freq)
+            prf=prf, n_range_bins=n_range_bins, g2_adc=g2_adc, range_resolution=range_resolution, n_chunks=n_chunks, centre_freq=centre_freq)
   
     G2_out= np.dstack((G2_out_1a, G2_out_1b))
     G2_out = np.dstack((G2_out, G2_out_2a))
@@ -738,7 +745,7 @@ def SAR(data, root_directory, switch_mode, time_stamp, prf, n_range_bins, max_ra
   print("SAR image saved.")
 
 #---------------------------------------------------------------------------------------------------------------------------------#
-def G2(data, title, root_directory, time_stamp, prf, n_range_bins, g2_adc, range_resolution, n_az_points, centre_freq):
+def G2(data, title, root_directory, time_stamp, prf, n_range_bins, g2_adc, range_resolution, n_chunks, centre_freq):
   '''
   SAR processor using G2
   (C) J Horrell (1999)
@@ -770,9 +777,9 @@ def G2(data, title, root_directory, time_stamp, prf, n_range_bins, g2_adc, range
     f_id.write('$CarrierFreq [Hz]             => ' + str(centre_freq) + '\n')
     f_id.write('$InputPRF [Hz]                => ' + str(prf) + '\n')
     f_id.write('$NomGroundSpeed [m/s]         => ' + str(mean_velocity) + '\n')
-    f_id.write('$InputFileAzPts               => ' + str(n_az_points) + '\n')
+    f_id.write('$InputFileAzPts               => ' + str(n_chunks) + '\n')
     f_id.write('$StartProcessAzPt             => ' + str(0) + '\n')
-    f_id.write('$AzPtsToProcess               => ' + str(n_az_points) + '\n')
+    f_id.write('$AzPtsToProcess               => ' + str(n_chunks) + '\n')
     f_id.write('$InputFileRngBins             => ' + str(n_range_bins) + '\n')
     f_id.write('$StartProcessRngBin           => ' + str(0) + '\n')
     f_id.write('$RngBinsToProcess             => ' + str(n_range_bins) + '\n')
@@ -804,10 +811,34 @@ def G2(data, title, root_directory, time_stamp, prf, n_range_bins, g2_adc, range
   os.system(azcom_executable + ' ' + str(g2_cmd))
 
   image = np.fromfile(g2_out, dtype='complex64')
-  G2_out = np.flipud(image.reshape(n_range_bins, n_az_points))
+  G2_out = np.flipud(image.reshape(n_range_bins, n_chunks))
   G2_out = np.nan_to_num(G2_out)
 
   return G2_out
+
+#---------------------------------------------------------------------------------------------------------------------------------#
+def range_profile(data, root_directory, range_line, range_axis):
+  '''
+  Plot range profile of given range line
+  '''
+  plt.figure()
+  plt.plot(range_axis, linear2db(abs(data[:, range_line])/np.amax(data)))
+  plt.xlim(0, range_axis[-1])
+  plt.grid()
+  plt.xlabel('Range (m)')
+  plt.ylabel('Normalised Power [dB]')
+  plt.title('Range Profile of Range Line', range_line)
+  title = 'quicklook/range_profiles/'+range_line+'.png'
+  plt.savefig(os.path.join(root_directory, title))
+
+#---------------------------------------------------------------------------------------------------------------------------------#
+def power_spectrum(data, root_directory, n_chunks):
+  '''
+  Power spectum of the entire signal
+  To determine in which range lines RFI interference is most prevalent
+  '''
+
+
 
 #---------------------------------------------------------------------------------------------------------------------------------#
 if __name__ == "__main__":
