@@ -329,7 +329,7 @@ def cfar_detector(root_directory, data, ns_fft, n_chunks, n_guard, n_train, pfa)
 
   for cell in range(n_side, n_cells-n_side):
     for y in range(0, n_chunks):
-      if (cell != (cell-n_side+np.argmax(data[cell-n_side:cell+n_side+1, y, :], axis=0))).all():
+      if (cell != (cell-n_side+np.argmax(data[cell-n_side:cell+n_side+1, y, :]))).all():
         # print(cell, np.argmax(data[cell-n_side:cell+n_side+1, y], axis=0)) # test statement
         continue
       # print(cell, np.argmax(data[cell-n_side:cell+n_side+1, y, :])) # test statement

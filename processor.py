@@ -73,6 +73,12 @@ def main():
     # option to remove RFI by replacing range bins containing RFI with zero arrays
     data = load_data(root_directory=root_directory, time_stamp=time_stamp, switch_mode=switch_mode, \
                     n_seconds=n_seconds, presummed_prf=presummed_prf, ns_pri=ns_pri, check_rfi=True)
+    
+    data = cfar_detector(root_directory=root_directory, data=data, ns_fft=ns_pri, n_chunks=n_chunks, \
+            n_guard=5, n_train=25, pfa=1e-3)
+    
+    range_doppler(data, root_directory, time_stamp, switch_mode, \
+                        n_seconds, presummed_prf, max_range, sampling_rate, all=False)
 
     data = fast_time_fft(data=data, ns_fft=ns_fft)
 
@@ -95,7 +101,7 @@ def main():
                 # n_chunks=n_chunks, ns_cpi=n_chunks)
           
           data = cfar_detector(root_directory=root_directory, data=data, ns_fft=ns_fft, n_chunks=n_chunks, \
-            n_guard=2, n_train=10, pfa=1e-3)
+            n_guard=5, n_train=25, pfa=1e-3)
 
         elif sys.argv[opt] == 'rd':
           # produce a range-Doppler plot and save to directory
@@ -361,74 +367,63 @@ def range_doppler(data, root_directory, time_stamp, switch_mode, n_seconds, pres
   n_FFT_Doppler = 2048
 
   #TODO: compute the appropriate axes to display range against Doppler frequency
-  x_axis = np.fft.fftfreq(n=n_FFT_Doppler, d=1/sampling_rate)/1e9 # frequecy axis scaled
+  x_axis = np.linspace(-20, 20, n_FFT_Doppler, endpoint=False) # frequecy axis scaled
   y_axis = np.linspace(0, max_range, (int)(n_seconds*presummed_prf), endpoint=False)  # range axis
+
+  
+  data_rd = np.fft.fft2(data)
 
   # select which channel to plot depending on switch mode
   if switch_mode == 1:
     # unpack data into the relevent polarizations depending on hardware configuration
-    channel_1a = data[:,:,0]
-    channel_1b = data[:,:,1]
+    channel_1a = data_rd[:,:,0]
+    channel_1b = data_rd[:,:,1]
 
-    # FFT in the slow-time axis
-    channel_1a_fft = np.fft.fft(channel_1a, n=n_FFT_Doppler, axis=1)
     # produce the range-Doppler plot
-    plot_rd_map(title='rd', data=channel_1a_fft, x_axis=x_axis, y_axis=y_axis, switch_mode=switch_mode, \
+    plot_rd_map(title='rd', data=channel_1a, x_axis=x_axis, y_axis=y_axis, switch_mode=switch_mode, \
                 channel='a', root_directory=root_directory, time_stamp=time_stamp)
 
     if all:
-      # FFT in the slow-time axis
-      channel_1b_fft = np.fft.fft(channel_1b, n=n_FFT_Doppler, axis=1)
       # produce the range-Doppler plot
-      plot_rd_map(title='rd', data=channel_1b_fft, x_axis=x_axis, y_axis=y_axis, switch_mode=switch_mode, \
+      plot_rd_map(title='rd', data=channel_1b, x_axis=x_axis, y_axis=y_axis, switch_mode=switch_mode, \
                 channel='b', root_directory=root_directory, time_stamp=time_stamp)
   
   elif switch_mode == 2:
     # unpack data into the relevent polarizations depending on hardware configuration
-    channel_2a = data[:,:,0]
-    channel_2b = data[:,:,1]
-
-    # FFT in the slow-time axis
-    channel_2a_fft = np.fft.fft(channel_2a, n=n_FFT_Doppler, axis=1)
+    channel_2a = data_rd[:,:,0]
+    channel_2b = data_rd[:,:,1]
+    
     # produce the range-Doppler plot
-    plot_rd_map(title='rd', data=channel_2a_fft, x_axis=x_axis, y_axis=y_axis, switch_mode=switch_mode, \
+    plot_rd_map(title='rd', data=channel_2a, x_axis=x_axis, y_axis=y_axis, switch_mode=switch_mode, \
                 channel='a', root_directory=root_directory, time_stamp=time_stamp)
     
     if all:
-      # FFT in the slow-time axis
-      channel_2b_fft = np.fft.fft(channel_2b, n=n_FFT_Doppler, axis=1)
       # produce the range-Doppler plot
-      plot_rd_map(title='rd', data=channel_2b_fft, x_axis=x_axis, y_axis=y_axis, switch_mode=switch_mode, \
+      plot_rd_map(title='rd', data=channel_2b, x_axis=x_axis, y_axis=y_axis, switch_mode=switch_mode, \
                 channel='b', root_directory=root_directory, time_stamp=time_stamp)
 
   elif switch_mode == 3:
-    channel_1a = data[:,:,0]
-    channel_1b = data[:,:,1]
-    channel_2a = data[:,:,2]
-    channel_2b = data[:,:,3]
+    channel_1a = data_rd[:,:,0]
+    channel_1b = data_rd[:,:,1]
+    channel_2a = data_rd[:,:,2]
+    channel_2b = data_rd[:,:,3]
 
-    # FFT in the slow-time axis
-    channel_1a_fft = np.fft.fft(channel_1a, n=n_FFT_Doppler, axis=1)
     # produce the range-Doppler plot
-    plot_rd_map(title='rd', data=channel_1a_fft, x_axis=x_axis, y_axis=y_axis, switch_mode=1, \
+    plot_rd_map(title='rd', data=channel_1a, x_axis=x_axis, y_axis=y_axis, switch_mode=1, \
                 channel='a', root_directory=root_directory, time_stamp=time_stamp)
 
     if all:
-      # FFT in the slow-time axis
-      channel_1b_fft = np.fft.fft(channel_1b, n=n_FFT_Doppler, axis=1)
-      channel_2a_fft = np.fft.fft(channel_2a, n=n_FFT_Doppler, axis=1)
-      channel_2b_fft = np.fft.fft(channel_2b, n=n_FFT_Doppler, axis=1)
-      
       # produce the range-Doppler plot
     
-      plot_rd_map(title='rd', data=channel_1b_fft, x_axis=x_axis, y_axis=y_axis, switch_mode=1, \
+      plot_rd_map(title='rd', data=channel_1b, x_axis=x_axis, y_axis=y_axis, switch_mode=1, \
                 channel='b', root_directory=root_directory, time_stamp=time_stamp)
           
-      plot_rd_map(title='rd', data=channel_2a_fft, x_axis=x_axis, y_axis=y_axis, switch_mode=2, \
+      plot_rd_map(title='rd', data=channel_2a, x_axis=x_axis, y_axis=y_axis, switch_mode=2, \
                 channel='a', root_directory=root_directory, time_stamp=time_stamp)
     
-      plot_rd_map(title='rd', data=channel_2b_fft, x_axis=x_axis, y_axis=y_axis, switch_mode=2, \
+      plot_rd_map(title='rd', data=channel_2b, x_axis=x_axis, y_axis=y_axis, switch_mode=2, \
                 channel='b', root_directory=root_directory, time_stamp=time_stamp)
+  del data_rd
 
 #---------------------------------------------------------------------------------------------------------------------------------#
 def plot_rd_map(title, data, x_axis, y_axis, switch_mode, channel, root_directory, time_stamp):
@@ -438,15 +433,16 @@ def plot_rd_map(title, data, x_axis, y_axis, switch_mode, channel, root_director
 
   plt.subplots(nrows=1,ncols=1)
   plt.title(title.upper() + " " + str(switch_mode) + channel)
-  plt.xlabel("Frequency [GHz]")
+  plt.xlabel("Frequency [Hz]")
   plt.ylabel("Range [m]")
 
-  data_dB = 20*np.log10(np.abs(data))
+  data_dB = 10*np.log10(np.abs(data))
   data_max = np.amax(data_dB)
-  data_min = data_max - 15
-  data_dB = np.clip(data_dB, data_min, data_max)
+  data_dB = data_dB / data_max
+  # data_min = np.nanmin(np.mean(data_dB)) 
+  # data_dB = np.clip(data_dB, data_min, data_max)
     
-  plt.imshow(X=data_dB, aspect='auto', origin='lower', extent=[min(x_axis), max(x_axis), min(y_axis), max(y_axis)])
+  plt.imshow(X=data_dB.transpose(), aspect='auto', origin='lower', extent=[min(x_axis), max(x_axis), min(y_axis), max(y_axis)])
   plt.colorbar(label='Power [dB]')
   plt.tight_layout()
     
@@ -633,8 +629,9 @@ def motion_compensation(data, switch_mode, root_directory, n_seconds, n_range_bi
 
   data_out = data
   # data_out = np.multiply(data, np.transpose(phase_shift))
-  for rng in range(0,n_range_bins):
-    data_out[rng,:,:] = np.multiply(data[rng,:,:], phase_shift[rng])
+  for rng in range(0, n_range_bins):
+    # data_out[rng,:,:] = np.multiply(data[rng,:,:], phase_shift[rng])
+    data_out[rng,:,:] = np.multiply(phase_shift[rng], data[rng,:,:])
 
   # apply range bin correction
   #   find max r_fft
@@ -643,14 +640,13 @@ def motion_compensation(data, switch_mode, root_directory, n_seconds, n_range_bi
   range_bin_size = max_range/n_range_bins # [m] each range bin spans
 
   # number of range bins to shift given delta_range calculated above
-  range_bin_shift = np.round(range_deviation/range_bin_size)
+  range_bin_shift = range_deviation // range_bin_size
   
   if switch_mode==1 or switch_mode==2:
     temp = np.zeros((n_range_bins, n_chunks, 2)).astype('complex64')
   elif switch_mode==3:
     temp = np.zeros((n_range_bins, n_chunks, 4)).astype('complex64')
 
-  count_temp = 0
   # for i in range(0, n_chunks):
   for j in range(0, n_range_bins):
     x = int(range_bin_shift[j])
@@ -661,15 +657,13 @@ def motion_compensation(data, switch_mode, root_directory, n_seconds, n_range_bi
     # elif x < -3:
       # x = -3
     
-    new_rbin = j - int(x)
+    new_rbin = j + int(x)
 
     # shift range bin from j to new_rbin
     if (new_rbin >= 0 and new_rbin < n_range_bins):
-      count_temp += 1
-      temp[j, :] = data_out[new_rbin, :]
+      temp[j, :, :] = data_out[new_rbin, :, :]
 
-  # data_out = temp
-  print(count_temp)
+  data_out = temp
 
   '''print("\nExtracting target height information form scene...")
 
@@ -698,7 +692,7 @@ def motion_compensation(data, switch_mode, root_directory, n_seconds, n_range_bi
   # print("taget height",target_height[100][1000])'''
 
   print("Motion errors corrected on dataset.")
-  return temp
+  return data_out
 
 #---------------------------------------------------------------------------------------------------------------------------------#
 def SAR(data, root_directory, switch_mode, time_stamp, prf, n_range_bins, max_range, g2_adc, range_resolution, \
@@ -723,13 +717,20 @@ def SAR(data, root_directory, switch_mode, time_stamp, prf, n_range_bins, max_ra
             prf=prf, n_range_bins=n_range_bins, g2_adc=g2_adc, range_resolution=range_resolution, n_chunks=n_chunks, centre_freq=centre_freq)
     G2_out = np.dstack((G2_out_1a, G2_out_1b))
 
+    # plot each SAR channel
+    image1a = G2_out_1a
+    image1b = G2_out_1b
+
   elif switch_mode == 2:
     G2_out_2a = G2(data=data[:,:,0], title='2a', root_directory=root_directory, time_stamp=time_stamp, \
             prf=prf, n_range_bins=n_range_bins, g2_adc=g2_adc, range_resolution=range_resolution, n_chunks=n_chunks, centre_freq=centre_freq)
     G2_out_2b = G2(data=data[:,:,1], title='2b', root_directory=root_directory, time_stamp=time_stamp, \
             prf=prf, n_range_bins=n_range_bins, g2_adc=g2_adc, range_resolution=range_resolution, n_chunks=n_chunks, centre_freq=centre_freq)
-
     G2_out = np.dstack((G2_out_2a, G2_out_2b))
+
+    # plot each SAR channel
+    image2a = G2_out_2a
+    image2b = G2_out_2b
   
   elif switch_mode == 3:
     
@@ -745,6 +746,13 @@ def SAR(data, root_directory, switch_mode, time_stamp, prf, n_range_bins, max_ra
     G2_out= np.dstack((G2_out_1a, G2_out_1b))
     G2_out = np.dstack((G2_out, G2_out_2a))
     G2_out = np.dstack((G2_out, G2_out_2b))
+    
+    # plot each SAR channel
+    image1a = G2_out_1a
+    image1b = G2_out_1b
+    image2a = G2_out_2a
+    image2b = G2_out_2b
+
   
   # noncoherent avering of data
   image = pow(np.mean(abs(G2_out), axis=2), 2)
@@ -752,7 +760,7 @@ def SAR(data, root_directory, switch_mode, time_stamp, prf, n_range_bins, max_ra
 			os.path.join(root_directory, 'quicklook/' + 'image.bin') )
   
   # normalize data
-  image = image/np.amax(image)
+  # image1a = image1a/np.amax(image1a)
     
   plt.subplots(nrows=1,ncols=1)
   plt.xlabel('Azimuth [m]')
