@@ -55,26 +55,28 @@ def main():
 
     # Extract configuration parameters from setup.ini and summary.ini files
     time_stamp, switch_mode, n_seconds, prf, decimation_factor, presummed_prf, ns_pri, \
-        min_range, max_range, n_range_bins, sampling_rate, g2_adc, n_range_bins, \
-            range_resolution, ns_fft, centre_freq, wavelength, n_chunks \
+        min_range, max_range, n_range_bins, sampling_rate, g2_adc, range_resolution, \
+          ns_fft, centre_freq, wavelength, n_chunks \
               = load_radar_parameters(root_directory=root_directory)
     
     # Axes definitions
-    sample_rate = RP_CLK/decimation_factor
     ramp_period = 1/prf
     chirp_rate = ramp_period/RAMP_BANDWIDTH
     range_scaling = (c/2) / chirp_rate
 
-    range_axis = np.linspace(0, sample_rate, ns_fft, endpoint=False) * range_scaling
-    time_axis = np.linspace(0, n_seconds, int(n_chunks), endpoint=False)
+    # range_axis = np.linspace(0, sampling_rate, ns_fft, endpoint=False) * range_scaling
+    # time_axis = np.linspace(0, n_seconds, int(n_chunks), endpoint=False)
+    frequency_axis = np.linspace(-sampling_rate/2, sampling_rate/2, ns_fft, endpoint=False)
 
     # load data from file and pack into a data matrix
+    # also plots signal envelope for analysis
+    # option to remove RFI by replacing range bins containing RFI with zero arrays
     data = load_data(root_directory=root_directory, time_stamp=time_stamp, switch_mode=switch_mode, \
-                    n_seconds=n_seconds, presummed_prf=presummed_prf, ns_pri=ns_pri)
-    print(data.shape)
+                    n_seconds=n_seconds, presummed_prf=presummed_prf, ns_pri=ns_pri, check_rfi=True)
 
     data = fast_time_fft(data=data, ns_fft=ns_fft)
-    print(data.shape)
+
+    power_spectrum(data=data, root_directory=root_directory, ns_fft=ns_fft, frequency_axis=frequency_axis, n_chunks=n_chunks)
 
     # OPTIONS
     if len(sys.argv) > 2:
@@ -82,6 +84,18 @@ def main():
         if sys.argv[opt] == 'raw':
           # save binary image to file
           save_raw(data, root_directory, switch_mode, n_range_bins, n_seconds, time_stamp, ns_fft)
+
+        elif sys.argv[opt] == 'notch':
+          # data = notch_filter(data=data, sampling_rate=5e9, intereference_freq=2.4e9, notch_width=20e6)
+          data = notch_filter(data=data, n_chunks=n_chunks, intergerence_frequency=2.4e9, quality_factor=30, sampling_rate=sampling_rate)
+
+        elif sys.argv[opt] == 'cfar':
+          # execute constant false alarm rate filter tp supress RFI
+          # data = cfar(root_directory=root_directory, data=data, ns_fft=ns_fft, switch_mode=switch_mode, \
+                # n_chunks=n_chunks, ns_cpi=n_chunks)
+          
+          data = cfar_detector(root_directory=root_directory, data=data, ns_fft=ns_fft, n_chunks=n_chunks, \
+            n_guard=2, n_train=10, pfa=1e-3)
 
         elif sys.argv[opt] == 'rd':
           # produce a range-Doppler plot and save to directory
@@ -133,7 +147,7 @@ def main():
     exit(-1)
 
 #---------------------------------------------------------------------------------------------------------------------------------#
-def load_data(root_directory, time_stamp, switch_mode, n_seconds, presummed_prf, ns_pri):
+def load_data(root_directory, time_stamp, switch_mode, n_seconds, presummed_prf, ns_pri, check_rfi=False):
   '''
   This function reads in raw miloSAR data stored in a .bin file in the given directory
   '''
@@ -192,7 +206,32 @@ def load_data(root_directory, time_stamp, switch_mode, n_seconds, presummed_prf,
 
   # apply windowing function to data
   data = window(data=data, switch_mode=switch_mode, ns_pri=ns_pri)
-    
+
+  # attempt to remove range bins contamited by RFI
+  if check_rfi:
+    remove_rfi(data=data, ns_pri=ns_pri, n_chunks=n_chunks)
+
+  # view signal amplitude in the time-domain
+  signal_envelope = pow(abs(data[:, 0:1000, 1]), 2)
+  signal_envelope = np.sum(signal_envelope, axis=1)
+  signal_envelope = 2*linear2db(signal_envelope)
+
+  plt.figure()
+  plt.plot(signal_envelope)
+  plt.xlim(0, ns_pri)
+  plt.ylim(-100, 0)
+  plt.grid()
+  plt.xlabel('Range Bins')
+  plt.ylabel('Amplitude [dB]')
+  plt.title('Signal Envelope (1000 Pulses)')
+  plt.legend(['ChA', 'ChB'])
+  if check_rfi:
+    plt.savefig(os.path.join(root_directory, 'quicklook/signal_envelope_rfi_removed.svg'))
+  else:
+    plt.savefig(os.path.join(root_directory, 'quicklook/signal_envelope.svg'))
+  
+  # data_cfar = cfar_filter(data=data, n_training_cells=10000)
+
   print("Dataset", time_stamp, "loaded successfully.")
   return data
 
@@ -218,7 +257,7 @@ def load_radar_parameters(root_directory):
     prf = int(summary['dataset']['prf'])
     decimation_factor = int(summary['dataset']['decimation_factor'])
     sampling_rate = float(summary['dataset']['sampling_rate'])
-    presumming_factor = int(summary['integration']['n_pris'])   # TODO: define clearly what this is
+    presumming_factor = int(summary['integration']['n_pris'])
     start_index = int(summary['integration']['start_index'])
     end_index = int(summary['integration']['end_index'])
 
@@ -255,9 +294,8 @@ def load_radar_parameters(root_directory):
 
     ns_fft = next_pow_two(ns_pri)
 
-    sample_rate = RP_CLK / decimation_factor
-    spectral_resolution = sample_rate/ns_pri # 1/T
-    fft_bin_spacing = sample_rate/ns_fft
+    spectral_resolution = sampling_rate/ns_pri # 1/T
+    fft_bin_spacing = sampling_rate/ns_fft
     range_bin_spacing = fft_bin_spacing * range_scaling
     range_resolution = range_scaling * np.hypot(spectral_resolution, fft_bin_spacing)
     g2_adc = c / (2*range_bin_spacing)
@@ -274,10 +312,10 @@ def load_radar_parameters(root_directory):
         n_chunks = int(n_seconds*presummed_prf//2)
 
     return time_stamp, switch_mode, n_seconds, prf, decimation_factor, presummed_prf, ns_pri, \
-            min_range, max_range, n_range_bins, sampling_rate, g2_adc, n_range_bins, \
-            range_resolution, ns_fft, centre_freq, wavelength, n_chunks
+            min_range, max_range, n_range_bins, sampling_rate, g2_adc, range_resolution, \
+              ns_fft, centre_freq, wavelength, n_chunks
 
-#---------------------------------------------------------------------------------------------------------------------------------#
+#TODO ---------------------------------------------------------------------------------------------------------------------------------#
 def save_raw(data, root_directory, switch_mode, n_range_bins, n_seconds, time_stamp):
   '''
   Not currently saving raw data as intended
@@ -311,7 +349,7 @@ def save_raw(data, root_directory, switch_mode, n_range_bins, n_seconds, time_st
 
   print('Binary image save to ' + image_path)
 
-#---------------------------------------------------------------------------------------------------------------------------------#
+#TODO ---------------------------------------------------------------------------------------------------------------------------------#
 def range_doppler(data, root_directory, time_stamp, switch_mode, n_seconds, presummed_prf, max_range, sampling_rate, all=False):
   '''
   Produces and saves a Range_Doppler plot of SAR data
@@ -415,7 +453,7 @@ def plot_rd_map(title, data, x_axis, y_axis, switch_mode, channel, root_director
   file_name = time_stamp + "_" + title + "_" + str(switch_mode) + channel + ".png"
   plt.savefig(os.path.join(root_directory, 'quicklook/'+file_name), dpi=300)
   
-  print(time_stamp + " " + title.upper() + " " + str(switch_mode) + channel + " saved.")
+  print("\n" + time_stamp + " " + title.upper() + " " + str(switch_mode) + channel + " saved.")
 
 #---------------------------------------------------------------------------------------------------------------------------------#
 def rti(data, root_directory, time_stamp, switch_mode, n_seconds, ns_pri, presummed_prf, max_range, title, all=False):
@@ -491,7 +529,7 @@ def plot_rti(title, data, x_axis, y_axis, switch_mode, channel, root_directory, 
     data = data/np.amax(data)
     data_dB = 20*np.log10(abs(data))
     data_max = np.amax(data_dB)
-    data_min = np.nanmin(np.mean(data_dB, axis=1)) + 20
+    data_min = np.nanmin(np.mean(data_dB, axis=1)) 
 
     data_dB = np.clip(data_dB, data_min, data_max)
 
@@ -519,7 +557,7 @@ def plot_rti(title, data, x_axis, y_axis, switch_mode, channel, root_directory, 
   file_name = time_stamp + "_" + title + "_" + str(switch_mode) + channel + ".png"
   plt.savefig(os.path.join(root_directory, 'quicklook/'+file_name), dpi=300)
   
-  print(time_stamp + " " + title.upper() + " " + str(switch_mode) + channel + " saved.")
+  print("\n" + time_stamp + " " + title.upper() + " " + str(switch_mode) + channel + " saved.")
 
 #---------------------------------------------------------------------------------------------------------------------------------#
 def motion_compensation(data, switch_mode, root_directory, n_seconds, n_range_bins, n_chunks, wavelength, \
@@ -605,32 +643,35 @@ def motion_compensation(data, switch_mode, root_directory, n_seconds, n_range_bi
   range_bin_size = max_range/n_range_bins # [m] each range bin spans
 
   # number of range bins to shift given delta_range calculated above
-  range_bin_shift = np.floor(range_deviation/range_bin_size)
+  range_bin_shift = np.round(range_deviation/range_bin_size)
   
   if switch_mode==1 or switch_mode==2:
     temp = np.zeros((n_range_bins, n_chunks, 2)).astype('complex64')
   elif switch_mode==3:
     temp = np.zeros((n_range_bins, n_chunks, 4)).astype('complex64')
 
+  count_temp = 0
   # for i in range(0, n_chunks):
   for j in range(0, n_range_bins):
     x = int(range_bin_shift[j])
     
     # limit cases where range shift is too large
-    if x > 2:
-      x = 2
-    elif x < -2:
-      x = -2
+    # if x > 3:
+      # x = 3
+    # elif x < -3:
+      # x = -3
     
     new_rbin = j - int(x)
 
     # shift range bin from j to new_rbin
     if (new_rbin >= 0 and new_rbin < n_range_bins):
-      temp[j] = data_out[new_rbin]
+      count_temp += 1
+      temp[j, :] = data_out[new_rbin, :]
 
-  data_out = temp
+  # data_out = temp
+  print(count_temp)
 
-  print("\nExtracting target height information form scene...")
+  '''print("\nExtracting target height information form scene...")
 
   altitude_interp = interpolate.interp1d(t_interpolate, altitude, kind='linear')
   altitude_interp = altitude_interp(range_axis)
@@ -654,9 +695,10 @@ def motion_compensation(data, switch_mode, root_directory, n_seconds, n_range_bi
   fig.savefig(os.path.join(root_directory, 'quicklook/scene_height.png'))
 
   # print("altitude:",altitude_interp[100])
-  # print("taget height",target_height[100][1000])
+  # print("taget height",target_height[100][1000])'''
+
   print("Motion errors corrected on dataset.")
-  return data_out
+  return temp
 
 #---------------------------------------------------------------------------------------------------------------------------------#
 def SAR(data, root_directory, switch_mode, time_stamp, prf, n_range_bins, max_range, g2_adc, range_resolution, \
@@ -720,7 +762,7 @@ def SAR(data, root_directory, switch_mode, time_stamp, prf, n_range_bins, max_ra
   img_mean = np.mean(image, axis=1)
   
   # dynamic range
-  a_min = np.nanmin(img_mean[img_mean!=-np.inf]) + 50
+  a_min = np.nanmin(img_mean[img_mean!=-np.inf])
   a_max = np.amax(image)
   if d_range:
     if d_range[0]:
@@ -817,29 +859,66 @@ def G2(data, title, root_directory, time_stamp, prf, n_range_bins, g2_adc, range
   return G2_out
 
 #---------------------------------------------------------------------------------------------------------------------------------#
-def range_profile(data, root_directory, range_line, range_axis):
+def range_profile(data, root_directory, range_bin, range_axis):
   '''
   Plot range profile of given range line
   '''
   plt.figure()
-  plt.plot(range_axis, linear2db(abs(data[:, range_line])/np.amax(data)))
+  plt.plot(range_axis, linear2db(abs(data[:, range_bin])/np.amax(data)))
   plt.xlim(0, range_axis[-1])
   plt.grid()
   plt.xlabel('Range (m)')
   plt.ylabel('Normalised Power [dB]')
-  plt.title('Range Profile of Range Line', range_line)
-  title = 'quicklook/range_profiles/'+range_line+'.png'
+  plt.title('Range Profile of Range Line', range_bin)
+  title = 'quicklook/range_profiles/'+range_bin+'.png'
   plt.savefig(os.path.join(root_directory, title))
 
 #---------------------------------------------------------------------------------------------------------------------------------#
-def power_spectrum(data, root_directory, n_chunks):
+def power_spectrum(data, root_directory, ns_fft, frequency_axis, n_chunks):
   '''
   Power spectum of the entire signal
   To determine in which range lines RFI interference is most prevalent
-  '''
+  Store power spectrum values in an array to determine range lines with high returns
+  '''  
+  power_spectrum = pow(abs(data[:,0:1000,:]), 2)
+  power_spectrum = np.sum(power_spectrum, axis=1)/n_chunks
+  power_spectrum = linear2db(power_spectrum)
+
+  plt.figure()
+  plt.plot(frequency_axis/1e6, power_spectrum)
+  # plt.xlim(min(frequency_axis), max(frequency_axis))
+  plt.ylim(np.amin(power_spectrum)-10, 0)
+  plt.grid()
+  plt.xlabel('Frequency [MHz]')
+  plt.ylabel('Power [dB]')
+  plt.title('Power Spectrum of Signal (1000 Pulses)')
+  plt.legend(['ChA', 'ChB'])
+  plt.savefig(os.path.join(root_directory, 'quicklook/power_spectrum.svg'))
 
 
+  # Find the range line with the max 
 
+def remove_rfi(data, ns_pri, n_chunks):
+
+  # find amplitude of each range bin
+  # remove range line with presence of rfi
+
+  signal_envelope = pow(abs(data[:, 0:n_chunks,0]), 2)
+  signal_envelope = np.average(signal_envelope, axis=1)
+  signal_envelope = 2*linear2db(signal_envelope)
+
+  n_channels = data.shape[-1]
+  data_clean = data
+  # iterate through the data and identify range bins with rfi presence and zero them out
+  for rng_bin in range(1, ns_pri):
+    prev = signal_envelope[rng_bin-1]
+    current = signal_envelope[rng_bin]
+
+    # if (abs(current)-abs(prev) > 3):  # if the current range bin contains twice or more of the power of the previous range bin
+      # data_clean[rng_bin,:,:] = np.zeros((n_chunks,n_channels), dtype=np.int16)
+
+  return data_clean
+  
 #---------------------------------------------------------------------------------------------------------------------------------#
 if __name__ == "__main__":
   main()  # call the main function
