@@ -354,7 +354,7 @@ def cfar_detector(root_directory, data, ns_fft, n_chunks, n_guard, n_train, pfa)
   return data_new
 
 #-----------------------------------------------------------------------------------------------------#
-def notch_filter(data, n_chunks, intergerence_frequency, quality_factor, sampling_rate):
+'''def notch_filter(data, n_chunks, intergerence_frequency, quality_factor, sampling_rate):
   # Notch filter polynomials
   nyquist_rate = 0.5 * sampling_rate
   w0 = intergerence_frequency / nyquist_rate
@@ -367,19 +367,26 @@ def notch_filter(data, n_chunks, intergerence_frequency, quality_factor, samplin
   h = h.reshape(n_chunks)
   data_filtered = np.dot(h, data)
 
-  return data_filtered
+  return data_filtered'''
 
-'''def notch_filter(data, sampling_rate, intereference_freq, notch_width):
-  nyquist_freq = sampling_rate / 0.5
+def notch_filter(data, n_seconds, sampling_rate, intereference_freq, notch_width):
+  nyquist_freq = sampling_rate * 0.5
   normalized_interference_freq = intereference_freq / nyquist_freq
   normalized_notch_width = notch_width / nyquist_freq
 
-  filter_order = 1
-  filter_coeffs = firwin(filter_order, [normalized_interference_freq - 0.5*normalized_notch_width,
+  filter_order = 3
+  n = int(n_seconds * sampling_rate)
+  b, a = signal.iirfilter(filter_order, [normalized_interference_freq - 0.5*normalized_notch_width,
                                         normalized_interference_freq + 0.5*normalized_notch_width],
-                                        window='hamming')
+                                        btype='bandstop', ftype='butter')
+  
+  filtered_data = signal.lfilter(b, a, data)
+
+  return filtered_data
+
+  # filter_coeffs = signal.firwin(numtaps=filter_order, cutoff=normalized_interference_freq, window='hamming', fs=sampling_rate)
+  # b, a = signal.butter(filter_order, normalized_interference_freq)#, btype='low', analog=False)
 
   #  Apply notch filter
-  filtered_data = lfilter(filter_coeffs, 1.0, data)
-
-  return filtered_data'''
+  # filtered_data = lfilter(filter_coeffs, 1.0, data)
+  # filtered_data = signal.lfilter(filter_coeffs, 1, data)

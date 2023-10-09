@@ -74,11 +74,11 @@ def main():
     data = load_data(root_directory=root_directory, time_stamp=time_stamp, switch_mode=switch_mode, \
                     n_seconds=n_seconds, presummed_prf=presummed_prf, ns_pri=ns_pri, check_rfi=True)
     
-    data = cfar_detector(root_directory=root_directory, data=data, ns_fft=ns_pri, n_chunks=n_chunks, \
-            n_guard=5, n_train=25, pfa=1e-3)
+    # data = cfar_detector(root_directory=root_directory, data=data, ns_fft=ns_pri, n_chunks=n_chunks, \
+            # n_guard=5, n_train=25, pfa=1e-3)
     
-    range_doppler(data, root_directory, time_stamp, switch_mode, \
-                        n_seconds, presummed_prf, max_range, sampling_rate, all=False)
+    # range_doppler(data, root_directory, time_stamp, switch_mode, \
+                        # n_seconds, presummed_prf, max_range, sampling_rate, all=False)
 
     data = fast_time_fft(data=data, ns_fft=ns_fft)
 
@@ -92,8 +92,8 @@ def main():
           save_raw(data, root_directory, switch_mode, n_range_bins, n_seconds, time_stamp, ns_fft)
 
         elif sys.argv[opt] == 'notch':
-          # data = notch_filter(data=data, sampling_rate=5e9, intereference_freq=2.4e9, notch_width=20e6)
-          data = notch_filter(data=data, n_chunks=n_chunks, intergerence_frequency=2.4e9, quality_factor=30, sampling_rate=sampling_rate)
+          data = notch_filter(data=data, n_seconds=n_seconds, sampling_rate=5e9, intereference_freq=2.4e9, notch_width=80e6)
+          # data = notch_filter(data=data, n_chunks=n_chunks, intergerence_frequency=2.4e9, quality_factor=30, sampling_rate=sampling_rate)
 
         elif sys.argv[opt] == 'cfar':
           # execute constant false alarm rate filter tp supress RFI
@@ -364,14 +364,15 @@ def range_doppler(data, root_directory, time_stamp, switch_mode, n_seconds, pres
   '''
 
   # Set FFT length
-  n_FFT_Doppler = 2048
+  n_Doppler = 4
+  n_Range = 16 #(int)(n_seconds*presummed_prf)
 
   #TODO: compute the appropriate axes to display range against Doppler frequency
-  x_axis = np.linspace(-20, 20, n_FFT_Doppler, endpoint=False) # frequecy axis scaled
-  y_axis = np.linspace(0, max_range, (int)(n_seconds*presummed_prf), endpoint=False)  # range axis
+  x_axis = np.linspace(-20, 20, n_Doppler, endpoint=False) # frequecy axis scaled
+  y_axis = np.linspace(0, max_range, n_Range, endpoint=False)  # range axis
 
   
-  data_rd = np.fft.fft2(data)
+  data_rd = np.fft.fft2(data)#, [n_Doppler,(int)(n_seconds*presummed_prf)])
 
   # select which channel to plot depending on switch mode
   if switch_mode == 1:
@@ -569,6 +570,7 @@ def motion_compensation(data, switch_mode, root_directory, n_seconds, n_range_bi
     - offset normal, n
   '''
   print("\nCorrecting motion errors...")
+   
   x_axis = np.linspace(0, n_seconds, n_range_bins, endpoint=False)  # time axis
   y_axis = np.linspace(0, max_range, n_chunks, endpoint=False)  # range axis
   motion_filename = glob.glob(os.path.join(root_directory, '*.json'))[0]
@@ -630,8 +632,8 @@ def motion_compensation(data, switch_mode, root_directory, n_seconds, n_range_bi
   data_out = data
   # data_out = np.multiply(data, np.transpose(phase_shift))
   for rng in range(0, n_range_bins):
-    # data_out[rng,:,:] = np.multiply(data[rng,:,:], phase_shift[rng])
-    data_out[rng,:,:] = np.multiply(phase_shift[rng], data[rng,:,:])
+    data_out[rng,:,:] = np.multiply(data[rng,:,:], phase_shift[rng])
+    # data_out[rng,:,:] = np.multiply(phase_shift[rng], data[rng,:,:])
 
   # apply range bin correction
   #   find max r_fft
