@@ -82,7 +82,8 @@ def main():
 
     data = fast_time_fft(data=data, ns_fft=ns_fft)
 
-    power_spectrum(data=data, root_directory=root_directory, ns_fft=ns_fft, frequency_axis=frequency_axis, n_chunks=n_chunks)
+    power_spectrum(data=data, root_directory=root_directory, ns_fft=ns_fft, frequency_axis=frequency_axis,\
+                  n_chunks=n_chunks, title='')
 
     # OPTIONS
     if len(sys.argv) > 2:
@@ -93,15 +94,16 @@ def main():
 
         elif sys.argv[opt] == 'notch':
           data = notch_filter(data=data, n_seconds=n_seconds, sampling_rate=5e9, intereference_freq=2.4e9, notch_width=80e6)
-          # data = notch_filter(data=data, n_chunks=n_chunks, intergerence_frequency=2.4e9, quality_factor=30, sampling_rate=sampling_rate)
+          power_spectrum(data=data, root_directory=root_directory, ns_fft=ns_fft, frequency_axis=frequency_axis,\
+                        n_chunks=n_chunks, title='notch_')
 
         elif sys.argv[opt] == 'cfar':
           # execute constant false alarm rate filter tp supress RFI
-          # data = cfar(root_directory=root_directory, data=data, ns_fft=ns_fft, switch_mode=switch_mode, \
-                # n_chunks=n_chunks, ns_cpi=n_chunks)
-          
           data = cfar_detector(root_directory=root_directory, data=data, ns_fft=ns_fft, n_chunks=n_chunks, \
-            n_guard=5, n_train=25, pfa=1e-3)
+                  n_guard=2, n_train=5, pfa=1e-3)
+
+          power_spectrum(data=data, root_directory=root_directory, ns_fft=ns_fft, frequency_axis=frequency_axis,\
+                        n_chunks=n_chunks, title='cfar_')
 
         elif sys.argv[opt] == 'rd':
           # produce a range-Doppler plot and save to directory
@@ -147,6 +149,8 @@ def main():
       print("    rd:     Plot range-Doppler map for each polarization")
       print("    rti:    Plot and save range time intensity plot for each polarization")
       print("    sar:    Compute and save SAR image\n")
+    
+    
               
   else:
     print("Directory", root_directory, "does not exist!")
@@ -884,7 +888,7 @@ def range_profile(data, root_directory, range_bin, range_axis):
   plt.savefig(os.path.join(root_directory, title))
 
 #---------------------------------------------------------------------------------------------------------------------------------#
-def power_spectrum(data, root_directory, ns_fft, frequency_axis, n_chunks):
+def power_spectrum(data, root_directory, ns_fft, frequency_axis, n_chunks, title):
   '''
   Power spectum of the entire signal
   To determine in which range lines RFI interference is most prevalent
@@ -903,7 +907,8 @@ def power_spectrum(data, root_directory, ns_fft, frequency_axis, n_chunks):
   plt.ylabel('Power [dB]')
   plt.title('Power Spectrum of Signal (1000 Pulses)')
   plt.legend(['ChA', 'ChB'])
-  plt.savefig(os.path.join(root_directory, 'quicklook/power_spectrum.svg'))
+  name = title + 'power_spectrum_1000.png'
+  plt.savefig(os.path.join(root_directory, 'quicklook/' + name))
 
 
   # Find the range line with the max 

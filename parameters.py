@@ -374,13 +374,12 @@ def notch_filter(data, n_seconds, sampling_rate, intereference_freq, notch_width
   normalized_interference_freq = intereference_freq / nyquist_freq
   normalized_notch_width = notch_width / nyquist_freq
 
-  filter_order = 3
-  n = int(n_seconds * sampling_rate)
+  filter_order = 5
   b, a = signal.iirfilter(filter_order, [normalized_interference_freq - 0.5*normalized_notch_width,
                                         normalized_interference_freq + 0.5*normalized_notch_width],
-                                        btype='bandstop', ftype='butter')
+                                        btype='bandstop', ftype='butter', output='ba')
   
-  filtered_data = signal.lfilter(b, a, data)
+  filtered_data = signal.lfilter(b=b, a=a, x=data, axis=0)
 
   return filtered_data
 
